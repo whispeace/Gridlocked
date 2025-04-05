@@ -64,22 +64,18 @@
         <div class="effects-container">
           <!-- Визуальные эффекты (взрывы, щиты, лечение) -->
           <template v-for="effect in effectsManager.getAllEffects()" :key="effect.id">
-            <div class="effect-wrapper" 
-                :style="{
-                  left: `${effect.position.x * CELL_SIZE}px`,
-                  top: `${effect.position.y * CELL_SIZE}px`
-                }">
+            <div class="effect-wrapper" :style="{
+              left: `${effect.position.x * CELL_SIZE}px`,
+              top: `${effect.position.y * CELL_SIZE}px`
+            }">
               <VisualEffectComponent :effect="effect" />
             </div>
           </template>
-          
+
           <!-- Летящие снаряды -->
           <template v-for="projectile in projectileManager.getActiveProjectiles()" :key="projectile.id">
-            <ProjectileComponent 
-              :projectile="projectile" 
-              :projectile-manager="projectileManager"
-              :cell-size="CELL_SIZE"
-            />
+            <ProjectileComponent :projectile="projectile" :projectile-manager="projectileManager"
+              :cell-size="CELL_SIZE" />
           </template>
         </div>
 
@@ -244,15 +240,20 @@ const getTerrainSymbol = (terrainType: string): string => {
 }
 
 const isMoveTarget = (x: number, y: number) => {
+  if (!availableMoves.value || availableMoves.value.length === 0) {
+    return false;
+  }
   return selectedAction.value === 'move' &&
-    availableMoves.value.some(pos => pos.x === x && pos.y === y)
-}
+    availableMoves.value.some(pos => pos.x === x && pos.y === y);
+};
 
 const isAttackTarget = (x: number, y: number) => {
+  if (!availableTargets.value || availableTargets.value.length === 0) {
+    return false;
+  }
   return selectedAction.value === 'attack' &&
-    availableTargets.value.some(pos => pos.x === x && pos.y === y)
-}
-
+    availableTargets.value.some(pos => pos.x === x && pos.y === y);
+};
 
 /**
  * Возвращает информацию о типе местности на указанной клетке
@@ -346,20 +347,30 @@ const selectAction = (action: ActionType) => {
   availableMoves.value = []
   availableTargets.value = []
 
-  // Обновление подсказок
+  // ИСПРАВЛЕНИЕ: сначала выполняем действие выбора для переключения состояния
+  gameEngine.executeAction({
+    playerId: currentPlayerId.value,
+    type: action,
+    payload: { selectOnly: true }, // Дополнительный флаг, чтобы указать, что это только выбор действия
+    timestamp: Date.now()
+  })
+
+  // Обновление подсказок и получение возможных ходов/целей
   if (action === 'move') {
     statusMessage.value = 'Выберите клетку для перемещения'
+    // ИСПРАВЛЕНИЕ: получаем доступные ходы после смены состояния
     availableMoves.value = gameEngine.getAvailableMoves()
 
-    // Анимируем доступные клетки для движения
+    // Анимируем доступные клетки
     availableMoves.value.forEach(pos => {
       cellAnimator.highlightCell(pos, '#3498db', 2000)
     })
   } else if (action === 'attack') {
     statusMessage.value = 'Выберите цель для атаки'
+    // ИСПРАВЛЕНИЕ: получаем доступные цели после смены состояния
     availableTargets.value = gameEngine.getAvailableTargets()
 
-    // Анимируем доступные цели для атаки
+    // Анимируем доступные цели
     availableTargets.value.forEach(pos => {
       cellAnimator.highlightCell(pos, '#e74c3c', 2000)
     })
@@ -376,97 +387,99 @@ const selectAction = (action: ActionType) => {
 
 // Исправленный метод handleCellClick
 const handleCellClick = (x: number, y: number) => {
-  const position = { x, y };
+  const position = { x, y }
 
   // Анимация клетки при клике
-  cellAnimator.highlightCell(position, '#fff', 300);
+  cellAnimator.highlightCell(position, '#fff', 300)
 
   // Важно: сохраняем оригинальную логику выбора действий
   if (selectedAction.value === 'move' && isMoveTarget(x, y)) {
-    executeAction('move', position);
+    executeAction('move', position)
   } else if (selectedAction.value === 'attack' && isAttackTarget(x, y)) {
-    executeAction('attack', position);
+    executeAction('attack', position)
   } else if (!selectedAction.value && isCurrentPlayerAt(x, y)) {
     // Если игрок кликнул на своей фигуре без выбранного действия
-    selectAction('move');
-    actionTooltip.value = 'Выберите, куда переместиться';
-    setTimeout(() => { actionTooltip.value = ''; }, 3000);
+    selectAction('move')
+    actionTooltip.value = 'Выберите, куда переместиться'
+    setTimeout(() => { actionTooltip.value = '' }, 3000)
   } else if (!selectedAction.value) {
     // Если игрок кликнул на случайной клетке без выбранного действия
-    actionTooltip.value = 'Сначала выберите действие внизу';
-    setTimeout(() => { actionTooltip.value = ''; }, 3000);
+    actionTooltip.value = 'Сначала выберите действие внизу'
+    setTimeout(() => { actionTooltip.value = '' }, 3000)
   }
-};
+}
 
 // Обновленная версия executeAction, сохраняющая базовую функциональность
 const executeAction = (actionType: ActionType, payload: any) => {
   // Получаем текущего игрока и его позицию
-  const currentPlayer = gameEngine.gameState.value.players[currentPlayerId.value];
-  const playerPosition = currentPlayer.position;
-  
+  const currentPlayer = gameEngine.gameState.value.players[currentPlayerId.value]
+  const playerPosition = currentPlayer.position
+
+
   // Создаем визуальные эффекты в зависимости от типа действия
   if (actionType === 'attack') {
-    const targetPosition = payload as Position;
-    
+    const targetPosition = payload as Position
+
     // Создаем эффект снаряда
-    const weapon = currentPlayer.weapons.find(w => w.type === currentPlayer.activeWeapon);
+    const weapon = currentPlayer.weapons.find(w => w.type === currentPlayer.activeWeapon)
     if (weapon) {
       // Выбираем тип снаряда в зависимости от оружия
       switch (weapon.type) {
         case 'pistol':
-          projectileManager.createBullet(playerPosition, targetPosition);
-          break;
+          projectileManager.createBullet(playerPosition, targetPosition)
+          break
         case 'shotgun':
           // Для дробовика создаем несколько снарядов
-          projectileManager.createBullet(playerPosition, targetPosition);
-          break;
+          projectileManager.createBullet(playerPosition, targetPosition)
+          break
         case 'sniper':
-          projectileManager.createLaser(playerPosition, targetPosition);
-          break;
+          projectileManager.createLaser(playerPosition, targetPosition)
+          break
         case 'machinegun':
-          projectileManager.createBullet(playerPosition, targetPosition);
-          break;
+          projectileManager.createBullet(playerPosition, targetPosition)
+          break
       }
     }
   } else if (actionType === 'defend') {
     // Эффект щита
-    effectsManager.createShield(playerPosition);
+    effectsManager.createShield(playerPosition)
   }
 
-  // ВАЖНО: Вызываем оригинальный метод движка для обработки игровой логики
-  const success = gameEngine.executeAction({
+  const result = gameEngine.executeAction({
     playerId: currentPlayerId.value,
     type: actionType,
     payload,
     timestamp: Date.now()
-  });
+  })
 
-  if (success) {
+  if (result.success) {
     // Установка временного сообщения об успехе
     const actionMessages = {
       'move': 'Вы переместились',
       'attack': 'Атака выполнена',
       'defend': 'Защита активирована'
-    };
-    
-    statusMessage.value = actionMessages[actionType];
-    
+    }
+
+    statusMessage.value = actionMessages[actionType]
+
     // Сброс выбранного действия и доступных целей
-    selectedAction.value = null;
-    availableMoves.value = [];
-    availableTargets.value = [];
-    
+    selectedAction.value = null
+    availableMoves.value = []
+    availableTargets.value = []
+
     // Очистка статусного сообщения через 2 секунды
     setTimeout(() => {
-      statusMessage.value = `Ход игрока ${currentPlayerId.value === 'player1' ? '1' : '2'}`;
-    }, 2000);
+      statusMessage.value = `Ход игрока ${currentPlayerId.value === 'player1' ? '1' : '2'}`
+    }, 2000)
   } else {
-    statusMessage.value = 'Невозможно выполнить это действие';
-    setTimeout(() => { statusMessage.value = ''; }, 2000);
+    statusMessage.value = result.message || 'Невозможно выполнить действие'
+    setTimeout(() => {
+      statusMessage.value = `Ход игрока ${currentPlayerId.value === 'player1' ? '1' : '2'}`
+    }, 2000)
   }
-  
-  return success;
-};
+
+  return result.success
+}
 
 const getActionName = (action: ActionType): string => {
   const actionNames: Record<ActionType, string> = {

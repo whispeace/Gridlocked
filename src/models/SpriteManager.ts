@@ -78,13 +78,18 @@ export class SpriteManager {
    * @returns Направление
    */
   private determineDirection(prevPos: Position, currentPos: Position): Direction {
+    // Базовая логика определения направления
     if (prevPos.x < currentPos.x) return 'right';
     if (prevPos.x > currentPos.x) return 'left';
     if (prevPos.y < currentPos.y) return 'down';
     if (prevPos.y > currentPos.y) return 'up';
     
-    // Если позиция не изменилась, сохраняем текущее направление
-    return this.currentAnimations.value[Object.keys(this.currentAnimations.value)[0]]?.direction || 'down';
+    // Если аниманий нет или позиция не изменилась, используем значение по умолчанию
+    const animKeys = Object.keys(this.currentAnimations.value);
+    if (animKeys.length > 0) {
+      return this.currentAnimations.value[animKeys[0]]?.direction || 'down';
+    }
+    return 'down'; // Значение по умолчанию
   }
 
   /**

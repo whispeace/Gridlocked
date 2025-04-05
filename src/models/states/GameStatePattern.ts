@@ -1,5 +1,5 @@
 import type { GameEngine } from '../GameEngine';
-import type { ActionType, Position, GameAction, ActionResult } from '../../types';
+import type { ActionType, Position, GameAction, ActionResult, Player } from '../../types';
 
 /**
  * Интерфейс состояния игры
@@ -81,7 +81,8 @@ export class PlayerActionSelectionState extends GameState {
   }
   
   handleAction(action: GameAction): ActionResult {
-    // Обработка выбора действия игроком
+    // ИСПРАВЛЕНИЕ: Проверяем, это только выбор действия или его выполнение
+    const isSelectOnly = action.payload?.selectOnly === true;
     
     // В зависимости от выбранного действия переключаемся на другое состояние
     switch(action.type) {
@@ -92,8 +93,11 @@ export class PlayerActionSelectionState extends GameState {
         this.engine.changeState(new PlayerAttackState(this.engine));
         break;
       case 'defend':
-        // Сразу выполняем действие защиты
-        return this.executeDefend(action);
+        // Если это только выбор защиты, не выполняем его сразу
+        if (!isSelectOnly) {
+          return this.executeDefend(action);
+        }
+        break;
     }
     
     return {
@@ -180,6 +184,7 @@ export class PlayerMovementState extends GameState {
     
     // Проверка валидности перемещения
     const isValid = this.validateMove(player, targetPosition);
+    console.log(isValid);
     
     if (!isValid) {
       return {
@@ -207,7 +212,19 @@ export class PlayerMovementState extends GameState {
     };
   }
   
-  private validateMove(player: any, targetPosition: Position): boolean {
+  private validateMove(player: Player, targetPosition: Position): boolean {
+
+    // Проверка занятости клетки
+    const isOccupied = Object.values(this.engine.gameState.value.players).some(p => 
+      p.id !== player.id && 
+      p.position.x === targetPosition.x && 
+      p.position.y === targetPosition.y
+    );
+
+    if (isOccupied) {
+      return false;
+    }
+
     // Проверка валидности перемещения (только в свою зону 3x3)
     const isPlayerOne = player.id === 'player1';
     const validXRange = isPlayerOne ? [0, 1, 2] : [3, 4, 5];
@@ -234,6 +251,12 @@ export class PlayerMovementState extends GameState {
   
   getAvailableMoves(): Position[] {
     const player = this.engine.currentPlayer.value;
+    // Проверяем, что player существует
+    if (!player) {
+      console.error('Игрок не найден в currentPlayer');
+      return [];
+    }
+    
     const { x, y } = player.position;
     
     // Определение зоны игрока
@@ -250,10 +273,13 @@ export class PlayerMovementState extends GameState {
     ];
     
     // Фильтрация по границам поля
-    return possibleMoves.filter(pos =>
+    const validMoves = possibleMoves.filter(pos =>
       pos.x >= minX && pos.x <= maxX &&
       pos.y >= 0 && pos.y <= 2
     );
+    
+    console.log('Доступные ходы:', validMoves);
+    return validMoves;
   }
   
   getAvailableTargets(): Position[] {
@@ -343,6 +369,11 @@ export class PlayerAttackState extends GameState {
       } else {
         // Иначе урон идёт по здоровью
         target.resources.health -= weapon.damage;
+      }
+
+      // Проверка на окончание игры
+      if (target.resources.health <= 0) {
+        // Логика завершения игры
       }
     });
     
