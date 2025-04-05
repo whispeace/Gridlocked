@@ -73,41 +73,72 @@ export class SpriteManager {
 
   /**
    * Определяет направление на основе предыдущей и текущей позиции
+   * Приоритет отдается горизонтальному движению
+   * 
    * @param prevPos Предыдущая позиция
    * @param currentPos Текущая позиция
-   * @returns Направление
+   * @returns Направление для анимации
    */
   private determineDirection(prevPos: Position, currentPos: Position): Direction {
-    // Базовая логика определения направления
-    if (prevPos.x < currentPos.x) return 'right';
-    if (prevPos.x > currentPos.x) return 'left';
-    if (prevPos.y < currentPos.y) return 'down';
-    if (prevPos.y > currentPos.y) return 'up';
+    const dx = currentPos.x - prevPos.x;
+    const dy = currentPos.y - prevPos.y;
     
-    // Если аниманий нет или позиция не изменилась, используем значение по умолчанию
-    const animKeys = Object.keys(this.currentAnimations.value);
-    if (animKeys.length > 0) {
-      return this.currentAnimations.value[animKeys[0]]?.direction || 'down';
+    // Приоритет горизонтального движения над вертикальным
+    if (Math.abs(dx) >= Math.abs(dy)) {
+      // Горизонтальное движение
+      if (dx > 0) return 'right';
+      if (dx < 0) return 'left';
+    } else {
+      // Вертикальное движение
+      if (dy > 0) return 'down';
+      if (dy < 0) return 'up';
     }
-    return 'down'; // Значение по умолчанию
+    
+    // Если позиция не изменилась, берем текущее направление или значение по умолчанию
+    const playerId = Object.keys(this.currentAnimations.value)[0];
+    if (playerId) {
+      return this.currentAnimations.value[playerId]?.direction || 'down';
+    }
+    
+    // Персонаж 1 смотрит вправо, персонаж 2 влево по умолчанию для базовой позиции
+    const isPlayer1 = prevPos.x < 3; // Игрок 1 находится в левой части поля
+    return isPlayer1 ? 'right' : 'left';
   }
 
   /**
    * Запускает анимацию определенного типа для игрока
+   * Определяет направление на основе предыдущей позиции или 
+   * использует ручное направление, если оно указано
+   * 
    * @param playerId ID игрока
    * @param animType Тип анимации
    * @param position Текущая позиция (для определения направления)
+   * @param manualDirection Опциональное ручное направление
    */
-  public playAnimation(playerId: string, animType: AnimationType, position: Position): void {
+  public playAnimation(
+    playerId: string, 
+    animType: AnimationType, 
+    position: Position,
+    manualDirection?: Direction
+  ): void {
     if (!this.playerSprites.value[playerId]) {
       console.error(`Спрайт для игрока ${playerId} не зарегистрирован`);
       return;
     }
 
-    // Определяем направление на основе предыдущей позиции
-    let direction: Direction = 'down';
-    if (this.lastPositions.value[playerId]) {
+    // Определяем направление: используем ручное или вычисляем на основе предыдущей позиции
+    let direction: Direction;
+    
+    if (manualDirection) {
+      // Используем переданное направление, если оно указано
+      direction = manualDirection;
+    } else if (this.lastPositions.value[playerId]) {
+      // Вычисляем направление на основе предыдущей позиции
       direction = this.determineDirection(this.lastPositions.value[playerId], position);
+    } else {
+      // Для первоначальной установки используем направление по умолчанию
+      // Персонаж 1 (слева) смотрит вправо, персонаж 2 (справа) смотрит влево
+      direction = playerId === 'player1' ? 'right' : 'left';
     }
     
     // Обновляем последнюю позицию
@@ -120,6 +151,21 @@ export class SpriteManager {
       currentFrame: 0,
       lastFrameTime: Date.now()
     };
+  }
+  
+  /**
+   * Устанавливает начальное направление персонажа
+   * Полезно для инициализации без изменения позиции
+   * 
+   * @param playerId ID игрока
+   * @param direction Направление
+   */
+  public setDirection(playerId: string, direction: Direction): void {
+    if (!this.currentAnimations.value[playerId]) {
+      return;
+    }
+    
+    this.currentAnimations.value[playerId].direction = direction;
   }
 
   /**

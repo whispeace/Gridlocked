@@ -42,9 +42,12 @@ function stopAnimationLoop() {
 
 // Запуск цикла анимации при монтировании компонента
 onMounted(() => {
-  // Запускаем анимацию "покоя" при первоначальной загрузке
-  props.spriteManager.playAnimation(props.playerId, 'idle', props.position);
+  console.log(`Монтирование компонента AnimatedPlayer для ${props.playerId}`);
+  
+  // Запускаем цикл анимации
   startAnimationLoop();
+  
+  // Уже не нужно запускать анимацию здесь, она инициализируется в GameBoard
 });
 
 // Очистка при размонтировании
@@ -61,42 +64,12 @@ watch(() => props.isDefending, (newValue) => {
   }
 });
 
-// Отслеживаем изменение позиции для запуска анимации ходьбы
-const prevPosition = ref<Position | null>(null);
-watch(() => props.position, (newPosition) => {
-  if (prevPosition.value) {
-    // Если позиция изменилась, запускаем анимацию ходьбы
-    if (newPosition.x !== prevPosition.value.x || newPosition.y !== prevPosition.value.y) {
-      props.spriteManager.playAnimation(props.playerId, 'walk', newPosition);
-      
-      // Через некоторое время переключаемся на анимацию покоя
-      setTimeout(() => {
-        if (!props.isDefending) {
-          props.spriteManager.playAnimation(props.playerId, 'idle', newPosition);
-        }
-      }, 500); // Продолжительность анимации ходьбы
-    }
-  }
-  
-  prevPosition.value = { ...newPosition };
-});
+// Отслеживание позиции не нужно, так как анимации управляются напрямую через GameBoard
+// Все анимации запускаются централизованно через spriteManager
 
-// Метод для внешнего запуска анимации (например, атаки)
-function playAnimation(type: AnimationType) {
-  props.spriteManager.playAnimation(props.playerId, type, props.position);
-  
-  // Если это не анимация защиты, возвращаемся к анимации покоя через некоторое время
-  if (type !== 'defend') {
-    setTimeout(() => {
-      if (!props.isDefending) {
-        props.spriteManager.playAnimation(props.playerId, 'idle', props.position);
-      }
-    }, 500); // Продолжительность анимации
-  }
-}
-
-// Экспортируем метод для использования в родительском компоненте
-defineExpose({ playAnimation });
+// Больше не используем этот метод, так как вызываем анимации напрямую через SpriteManager
+// Экспортируем пустой интерфейс
+defineExpose({});
 </script>
 
 <template>
