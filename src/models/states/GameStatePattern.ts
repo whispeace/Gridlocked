@@ -1,532 +1,234 @@
 import type { GameEngine } from '../GameEngine';
 import type { ActionType, Position, GameAction, ActionResult, Player, VisualEffect } from '../../types';
+import { SpriteManager } from '../SpriteManager'
 
-/**
- * Интерфейс состояния игры
- */
+const spriteManager = new SpriteManager();
+
+/** Интерфейс */
 export interface GameStateInterface {
-  /**
-   * Вход в состояние
-   */
   enter(): void;
-  
-  /**
-   * Выход из состояния
-   */
   exit(): void;
-  
-  /**
-   * Обработка действия игрока
-   * @param action Действие игрока
-   * @returns Результат выполнения действия
-   */
   handleAction(action: GameAction): ActionResult;
-  
-  /**
-   * Получение доступных действий
-   * @param playerId ID игрока
-   * @returns Массив доступных действий
-   */
   getAvailableActions(playerId?: string): ActionType[];
-  
-  /**
-   * Получение доступных целей для перемещения
-   * @param playerId ID игрока
-   * @returns Массив доступных позиций
-   */
   getAvailableMoves(playerId?: string): Position[];
-  
-  /**
-   * Получение доступных целей для атаки
-   * @param playerId ID игрока
-   * @returns Массив доступных позиций
-   */
   getAvailableTargets(playerId?: string): Position[];
-  
-  /**
-   * Проверка завершения раунда
-   * @returns true, если раунд завершен
-   */
   isRoundComplete(): boolean;
 }
 
-/**
- * Абстрактный класс состояния игры
- */
+/** Базовый */
 export abstract class GameState implements GameStateInterface {
   constructor(protected engine: GameEngine) {}
-  
   abstract enter(): void;
-  
   abstract exit(): void;
-  
   abstract handleAction(action: GameAction): ActionResult;
-  
   abstract getAvailableActions(playerId?: string): ActionType[];
-  
   abstract getAvailableMoves(playerId?: string): Position[];
-  
   abstract getAvailableTargets(playerId?: string): Position[];
-  
   abstract isRoundComplete(): boolean;
 }
 
-/**
- * Состояние выбора действий игроками
- */
+/** Состояние выбора действий */
 export class PlayersActionSelectionState extends GameState {
-  enter(): void {
-    // Сброс выбранных действий обоих игроков
+  enter() {
     this.engine.resetPendingActions();
   }
-  
-  exit(): void {
-    // Логика при выходе из состояния
-  }
-  
+  exit() {}
   handleAction(action: GameAction): ActionResult {
-    // Сохраняем выбранное действие игрока
-    const isActionStoredSuccessfully = this.engine.storePendingAction(action);
-    
-    if (!isActionStoredSuccessfully) {
-      return {
-        success: false,
-        affectedPositions: [],
-        message: 'Невозможно выполнить действие',
-      };
-    }
-    
-    // Проверяем, выбрали ли оба игрока свои действия
-    if (this.engine.areBothPlayersReady()) {
-      // Если оба игрока выбрали действия, переходим к их выполнению
-      this.engine.changeState(new ActionsExecutionState(this.engine));
-    }
-    
-    return {
-      success: true,
-      affectedPositions: [],
-      message: `Действие ${action.type} выбрано`,
-    };
+    const stored = this.engine.storePendingAction(action);
+    if (!stored) return { success: false, affectedPositions: [], message: 'Уже выбрано' };
+    if (this.engine.areBothPlayersReady()) this.engine.changeState(new ActionsExecutionState(this.engine));
+    return { success: true, affectedPositions: [], message: `Выбрали ${action.type}` };
   }
-  
-  getAvailableActions(playerId: string): ActionType[] {
-    if (!playerId) return [];
-    
-    // Получение доступных действий для конкретного игрока
-    const player = this.engine.gameState.players[playerId];
-    if (!player) return [];
-    
-    const actions: ActionType[] = ['move', 'defend'];
-    
-    // Проверка возможности атаки (наличие патронов)
-    const weapon = player.weapons.find(w => w.type === player.activeWeapon);
-    if (weapon && player.resources.ammo >= weapon.ammoPerShot) {
-      actions.push('attack');
-    }
-    
-    return actions;
+  getAvailableActions(id?: string): ActionType[] {
+    if (!id) return [];
+    const p = this.engine.gameState.players[id];
+    if (!p) return [];
+    const arr: ActionType[] = ['move', 'defend'];
+    const w = p.weapons.find(w => w.type === p.activeWeapon);
+    if (w && p.resources.ammo >= w.ammoPerShot) arr.push('attack');
+    return arr;
   }
-  
-  getAvailableMoves(playerId: string): Position[] {
-    if (!playerId) return [];
-    
-    const player = this.engine.gameState.players[playerId];
-    if (!player) return [];
-    
-    const { x, y } = player.position;
-    
-    // Определение зоны игрока
-    const isPlayerOne = playerId === 'player1';
-    const minX = isPlayerOne ? 0 : 3;
-    const maxX = isPlayerOne ? 2 : 5;
-    
-    // Проверка соседних клеток
-    const possibleMoves: Position[] = [
-      { x: x - 1, y },
-      { x: x + 1, y },
-      { x, y: y - 1 },
-      { x, y: y + 1 }
-    ];
-    
-    // Фильтрация по границам поля
-    return possibleMoves.filter(pos =>
-      pos.x >= minX && pos.x <= maxX &&
-      pos.y >= 0 && pos.y <= 2
-    );
+  getAvailableMoves(id?: string): Position[] {
+    if (!id) return [];
+    const p = this.engine.gameState.players[id];
+    if (!p) return [];
+    const { x, y } = p.position;
+    const isP1 = id === 'player1';
+    const minX = isP1 ? 0 : 3;
+    const maxX = isP1 ? 2 : 5;
+    return [
+      { x: x - 1, y }, { x: x + 1, y }, { x, y: y - 1 }, { x, y: y + 1 }
+    ].filter(pos => pos.x >= minX && pos.x <= maxX && pos.y >= 0 && pos.y <= 2);
   }
-  
-  getAvailableTargets(playerId: string): Position[] {
+  getAvailableTargets(playerId?: string): Position[] {
     if (!playerId) return [];
-    
-    const player = this.engine.gameState.players[playerId];
-    if (!player) return [];
-    
-    const weapon = player.weapons.find(w => w.type === player.activeWeapon);
-    if (!weapon || player.resources.ammo < weapon.ammoPerShot) {
-      return [];
-    }
-    
-    // Определяем, нужно ли выбирать цель для этого оружия
-    if (weapon.type === 'pistol' || weapon.type === 'sniper' || weapon.type === 'machinegun') {
-      // Для простого оружия автоматически стреляем в направлении противника
-      return [];
-    }
-    
-    // Для дробовика и других сложных оружий возвращаем все доступные цели
-    const targets: Position[] = [];
-    const { x, y } = player.position;
-    
-    for (let dx = -weapon.range; dx <= weapon.range; dx++) {
-      for (let dy = -weapon.range; dy <= weapon.range; dy++) {
-        if (Math.abs(dx) + Math.abs(dy) <= weapon.range) {
-          const targetX = x + dx;
-          const targetY = y + dy;
-          
-          // Проверка границ поля
-          if (targetX >= 0 && targetX < 6 && targetY >= 0 && targetY < 3) {
-            targets.push({ x: targetX, y: targetY });
-          }
+    const p = this.engine.gameState.players[playerId];
+    if (!p) return [];
+    const w = p.weapons.find(w => w.type === p.activeWeapon);
+    if (!w || p.resources.ammo < w.ammoPerShot) return [];
+    if (['pistol', 'sniper', 'machinegun'].includes(w.type)) return [];
+    const res: Position[] = [];
+    for (let dx = -w.range; dx <= w.range; dx++)
+      for (let dy = -w.range; dy <= w.range; dy++)
+        if (Math.abs(dx) + Math.abs(dy) <= w.range) {
+          const tx = p.position.x + dx, ty = p.position.y + dy;
+          if (tx >= 0 && tx < 6 && ty >= 0 && ty < 3) res.push({ x: tx, y: ty });
         }
-      }
-    }
-    
-    return targets;
+    return res;
   }
-  
-  isRoundComplete(): boolean {
-    // Раунд не завершен, пока оба игрока не выбрали свои действия
-    return false;
-  }
+  isRoundComplete() { return false; }
 }
 
-/**
- * Состояние выполнения выбранных действий
- */
+/** Состояние выполнения ходов */
 export class ActionsExecutionState extends GameState {
-  private actionResults: ActionResult[] = [];
-  
-  enter(): void {
-    // Выполняем все действия в правильном порядке
-    this.executeAllActions();
+  async enter() {
+    await this.executeAllAsync();
   }
   
-  exit(): void {
-    // Очистка результатов
-    this.actionResults = [];
-  }
-  
-  handleAction(_action: GameAction): ActionResult {
-    // В этом состоянии новые действия не принимаются
-    return {
-      success: false,
-      affectedPositions: [],
-      message: 'Подождите, выполняются текущие действия',
-    };
-  }
-  
-  /**
-   * Выполняет все ожидающие действия в порядке приоритета
-   */
-  private executeAllActions(): void {
-    // Получаем все ожидающие действия
-    const pendingActions = this.engine.getPendingActions();
-    console.log('Выполнение действий:', pendingActions.map(a => `${a.playerId}: ${a.type}`));
-    
-    // Сортировка действий по приоритету:
-    // 1. Защита
-    // 2. Атака
-    // 3. Перемещение
-    const sortedActions = [...pendingActions].sort((a, b) => {
-      const getPriority = (type: ActionType): number => {
-        switch(type) {
-          case 'defend': return 3;
-          case 'attack': return 2;
-          case 'move': return 1;
-          default: return 0;
-        }
-      };
-      
-      return getPriority(b.type) - getPriority(a.type);
+  private async executeAllAsync() {
+    const ordered = this.engine.getPendingActions().sort((a, b) => {
+      const prio = (t: ActionType) => t==='defend'?3:t==='attack'?2:1;
+      return prio(b.type) - prio(a.type);
     });
-    
-    console.log('Порядок выполнения:', sortedActions.map(a => `${a.playerId}: ${a.type}`));
-    
-    // Выполняем каждое действие
-    sortedActions.forEach(action => {
-      console.log(`Выполнение действия: ${action.playerId} - ${action.type}`);
-      const result = this.executeAction(action);
-      this.actionResults.push(result);
-      console.log('Результат:', result);
-    });
-    
-    // Переход к следующему раунду
-    setTimeout(() => {
-      console.log('Переход к следующему раунду');
-      this.engine.incrementRound();
-      this.engine.changeState(new PlayersActionSelectionState(this.engine));
-    }, 1500); // Задержка для анимаций
+    for(const a of ordered){
+      console.log(`[EXEC] ${a.playerId}: ${a.type}`);
+      const res = this.executeSingle(a);
+      console.log('[Result]', res.message, res);
+      // Даем красивой анимации проиграться
+      await new Promise(resolve => setTimeout(resolve, 600));
+    }
+    await new Promise(resolve => setTimeout(resolve, 600)); // Доп. пауза после всех
+    this.engine.incrementRound();
+    this.engine.changeState(new PlayersActionSelectionState(this.engine));
   }
   
-  /**
-   * Выполняет отдельное действие и возвращает результат
-   */
-  private executeAction(action: GameAction): ActionResult {
-    const player = this.engine.gameState.players[action.playerId];
-    
-    switch(action.type) {
-      case 'move':
-        return this.executeMove(player, action);
-      case 'attack':
-        return this.executeAttack(player, action);
-      case 'defend':
-        return this.executeDefend(player, action);
-      default:
-        return {
-          success: false,
-          affectedPositions: [],
-          message: 'Неизвестное действие',
-        };
+  exit() {}
+  handleAction(): ActionResult {
+    return { success: false, affectedPositions: [], message: 'Подождите выполнения' }
+  }
+
+  private executeAll() {
+    const ordered = this.engine.getPendingActions().sort((a,b) => {
+      const prio = (t: ActionType) => t==='defend'?3:t==='attack'?2:1;
+      return prio(b.type) - prio(a.type);
+    });
+
+    ordered.forEach(a => {
+      console.log(`[EXECUTE] ${a.playerId}: ${a.type}`);
+      const r = this.executeSingle(a);
+      console.log('[Result]', r.message, r);
+    });
+
+    this.engine.incrementRound();
+    this.engine.changeState(new PlayersActionSelectionState(this.engine));
+  }
+
+  private executeSingle(action: GameAction): ActionResult {
+    const p = this.engine.gameState.players[action.playerId];
+    if (!p) return {success:false, affectedPositions:[], message:'No Player'};
+    switch(action.type){
+      case 'move': return this.doMove(p, action);
+      case 'attack': return this.doAttack(p, action);
+      case 'defend': return this.doDefend(p);
+      default: return {success:false, affectedPositions:[], message:'Unknown'};
     }
   }
-  
-  /**
-   * Выполняет действие перемещения
-   */
-  private executeMove(player: Player, action: GameAction): ActionResult {
-    const targetPosition = action.payload as Position;
-    
-    // Проверяем, не выполнилось ли уже перемещение другого игрока на эту же клетку
-    const isOccupied = Object.values(this.engine.gameState.players).some(p => 
-      p.id !== player.id && 
-      p.position.x === targetPosition.x && 
-      p.position.y === targetPosition.y
+
+  private doMove(p: Player, act: GameAction): ActionResult {
+    const target = act.payload as Position;
+    const occ = Object.values(this.engine.gameState.players).some(pl =>
+      pl.id !== p.id && pl.position.x === target.x && pl.position.y === target.y
     );
-    
-    if (isOccupied) {
-      return {
-        success: false,
-        affectedPositions: [player.position],
-        message: 'Клетка уже занята другим игроком',
-      };
-    }
-    
-    // Выполнение перемещения
-    const oldPosition = { ...player.position };
-    player.position = { ...targetPosition };
-    
+    if (occ) return {success:false, affectedPositions:[p.position], message:'Клетка занята'};
+    const from = {...p.position};
+    p.position = {...target};
+  
+    // Запускаем анимацию ходьбы
+    spriteManager.playAnimation(p.id, 'walk', p.position);
+    setTimeout(() => spriteManager.playAnimation(p.id, 'idle', p.position), 500);  // Через 0.5 сек вернется Idle
+
+    return {success:true, affectedPositions:[from, target], message:'Перемещение'};
+  }
+  
+
+  private doDefend(p: Player): ActionResult {
+    p.isDefending = true;
     return {
       success: true,
-      affectedPositions: [oldPosition, targetPosition],
-      message: 'Перемещение выполнено',
-    };
-  }
-  
-  /**
-   * Выполняет действие атаки
-   * @param player Игрок, выполняющий атаку
-   * @param action Информация о действии атаки
-   * @returns Результат выполнения атаки
-   */
-  private executeAttack(player: Player, action: GameAction): ActionResult {
-    // Получение оружия
-    const weapon = player.weapons.find(w => w.type === player.activeWeapon);
-    
-    if (!weapon) {
-      return {
-        success: false,
-        affectedPositions: [],
-        message: 'Нет активного оружия',
-      };
-    }
-    
-    // Проверка наличия достаточного количества патронов
-    if (player.resources.ammo < weapon.ammoPerShot) {
-      return {
-        success: false,
-        affectedPositions: [],
-        message: 'Недостаточно патронов',
-      };
-    }
-    
-    // Расход патронов
-    player.resources.ammo -= weapon.ammoPerShot;
-    
-    // Находим противника
-    const isPlayerOne = player.id === 'player1';
-    const enemyId = isPlayerOne ? 'player2' : 'player1';
-    const enemy = this.engine.gameState.players[enemyId];
-    
-    // Определяем цель атаки
-    let targetPosition: Position;
-    
-    // Проверяем: передана ли конкретная позиция для атаки (для сложного оружия)
-    if (action.payload && (
-        weapon.type === 'shotgun' || 
-        (typeof action.payload === 'object' && 'x' in action.payload && 'y' in action.payload) ||
-        (typeof action.payload === 'object' && action.payload.targetPosition)
-    )) {
-      // Используем указанную позицию для атаки
-      targetPosition = 
-        (action.payload.targetPosition) || 
-        (typeof action.payload === 'object' && 'x' in action.payload ? action.payload : null) as Position;
-    } else {
-      // Для простого оружия (пистолет, снайпер, пулемет) стреляем по линии к противнику
-      
-      // Важное изменение: теперь стреляем прямо в позицию противника, 
-      // а не просто по прямой с фиксированной дальностью
-      targetPosition = { ...enemy.position };
-    }
-    
-    // Проверка дальности оружия
-    const distX = Math.abs(targetPosition.x - player.position.x);
-    const distY = Math.abs(targetPosition.y - player.position.y);
-    
-    // Если цель вне зоны досягаемости, атака промахивается
-    if (distX + distY > weapon.range) {
-      return {
-        success: true,
-        affectedPositions: [targetPosition],
-        message: 'Цель вне зоны досягаемости',
-        visualEffects: [{
-          type: 'miss',
-          position: targetPosition,
-          duration: 600
-        }]
-      };
-    }
-    
-    // Расчёт клеток поражения на основе шаблона оружия и позиции цели
-    let affectedPositions: Position[];
-    
-    if (weapon.type === 'shotgun') {
-      // Для дробовика используем шаблон атаки
-      affectedPositions = weapon.attackPattern.map(offset => ({
-        x: targetPosition.x + offset.x,
-        y: targetPosition.y + offset.y
-      }));
-    } else {
-      // Для пистолета, снайпера и пулемета атакуем точно по позиции противника
-      affectedPositions = [{ ...targetPosition }];
-    }
-    
-    // Проверяем, находятся ли позиции в пределах игрового поля
-    const validAffectedPositions = affectedPositions.filter(pos => 
-      pos.x >= 0 && pos.x < 6 && pos.y >= 0 && pos.y < 3
-    );
-    
-    // Определение целей атаки (другие игроки в зоне поражения)
-    // Ключевое исправление: проверяем попадание по противнику
-    const targetPlayers = Object.values(this.engine.gameState.players).filter(p =>
-      p.id !== player.id &&
-      validAffectedPositions.some(pos => pos.x === p.position.x && pos.y === p.position.y)
-    );
-    
-    // Вывод отладочной информации
-    console.log('Атака:', {
-      игрок: player.id,
-      оружие: weapon.type,
-      позицияИгрока: player.position,
-      позицияЦели: targetPosition,
-      пораженныеПозиции: validAffectedPositions,
-      пораженныеИгроки: targetPlayers.map(p => p.id),
-      позицииПротивников: Object.values(this.engine.gameState.players)
-        .filter(p => p.id !== player.id).map(p => `${p.id}: ${p.position.x},${p.position.y}`)
-    });
-    
-    // Применение урона к целям
-    targetPlayers.forEach(target => {
-      // Сохраняем исходное значение здоровья для отображения нанесенного урона
-      const oldHealth = target.resources.health;
-      
-      // Если цель защищается и у неё есть щиты, урон идёт по щитам
-      if (target.isDefending && target.resources.shield > 0) {
-        target.resources.shield = Math.max(0, target.resources.shield - 1);
-      } else {
-        // Иначе урон идёт по здоровью
-        target.resources.health = Math.max(0, target.resources.health - weapon.damage);
-      }
-      
-      // Вычисляем фактически нанесенный урон
-      const actualDamage = oldHealth - target.resources.health;
-      
-      console.log(`Урон нанесен ${target.id}: ${actualDamage} (здоровье: ${target.resources.health})`);
-    });
-    
-    // Создаем визуальные эффекты для всех задействованных клеток
-    const visualEffects: VisualEffect[] = [];
-    
-    // Добавляем визуальные эффекты в зависимости от результата атаки
-    validAffectedPositions.forEach(pos => {
-      // Проверяем, есть ли попадание по игроку на этой позиции
-      const hitPlayer = targetPlayers.find(p => p.position.x === pos.x && p.position.y === pos.y);
-      
-      if (hitPlayer) {
-        // Эффект попадания (взрыв)
-        visualEffects.push({
-          type: 'explosion',
-          position: pos,
-          duration: 800
-        });
-      } else {
-        // Эффект промаха
-        visualEffects.push({
-          type: 'miss',
-          position: pos,
-          duration: 600
-        });
-      }
-    });
-    
-    // Формируем сообщение о результате атаки
-    let message = 'Промах';
-    if (targetPlayers.length > 0) {
-      message = `Попадание! Нанесено ${weapon.damage} урона`;
-    }
-    
-    return {
-      success: true,
-      affectedPositions: validAffectedPositions,
-      damage: weapon.damage,
-      message: message,
-      visualEffects: visualEffects,
-    };
-  }
-  
-  /**
-   * Выполняет действие защиты
-   */
-  private executeDefend(player: Player, _action: GameAction): ActionResult {
-    player.isDefending = true;
-    
-    return {
-      success: true,
-      affectedPositions: [player.position],
-      message: 'Защита активирована',
+      affectedPositions: [p.position],
+      message: 'Защита',
       visualEffects: [{
         type: 'shield',
-        position: player.position,
-        duration: 1000
+        position: p.position,
+        duration: 1000,
       }]
-    };
+    }
   }
-  
-  getAvailableActions(): ActionType[] {
-    // В этом состоянии нет доступных действий
-    return [];
+
+  private doAttack(p: Player, act: GameAction): ActionResult {
+    const weapon = p.weapons.find(w=>w.type===p.activeWeapon);
+    if (!weapon) return {success:false, affectedPositions:[], message:'Без оружия'};
+    if (p.resources.ammo < weapon.ammoPerShot) return {success:false, affectedPositions:[], message:'Нет патронов'};
+    p.resources.ammo -= weapon.ammoPerShot;
+
+    const enemy = this.engine.gameState.players[p.id === 'player1' ? 'player2' : 'player1'];
+
+    let target: Position;
+    if ( act.payload && (weapon.type==='shotgun'|| act.payload.targetPosition || (typeof act.payload.x==='number' && typeof act.payload.y==='number')) ) {
+      target = act.payload.targetPosition || act.payload;
+    } else {
+      target = {...enemy.position};
+    }
+
+    const dist = Math.abs(target.x - p.position.x) + Math.abs(target.y - p.position.y);
+    if(dist > weapon.range){
+      return {
+        success:true,
+        affectedPositions:[target],
+        message:'Цель вне зоны',
+        visualEffects:[{type:'miss', position:target, duration:600}]
+      }
+    }
+
+    let area : Position[];
+    if( weapon.type==='shotgun'){
+      area = weapon.attackPattern.map(offset=>({x:target.x+offset.x, y:target.y+offset.y}));
+    } else{
+      area = [{...target}];
+    }
+    const validPos = area.filter(pos=> pos.x>=0 && pos.x<6 && pos.y>=0 && pos.y<3);
+
+    const hitPlayers = Object.values(this.engine.gameState.players).filter(pp =>
+      pp.id !== p.id && validPos.some(pos=> pos.x===pp.position.x && pos.y===pp.position.y)
+    );
+
+    hitPlayers.forEach(tp => {
+      let dmg = weapon.damage;
+      if(tp.isDefending && tp.resources.shield>0){
+        tp.resources.shield = Math.max(0, tp.resources.shield-1);
+        dmg = 0; // щит блокирует весь урон
+      }
+      tp.resources.health = Math.max(0, tp.resources.health-dmg);
+      console.log(`${tp.id} получил урон: ${dmg}, здоровье: ${tp.resources.health}, щиты: ${tp.resources.shield}`);
+    });
+
+    const effects: VisualEffect[] = [];
+    validPos.forEach(pos => {
+      if(hitPlayers.some(tp=>tp.position.x === pos.x && tp.position.y===pos.y))
+        effects.push({type:'explosion', position:pos, duration:800});
+      else
+        effects.push({type:'miss', position:pos, duration:600});
+    });
+    return {
+      success:true,
+      affectedPositions: validPos,
+      message: hitPlayers.length?'Попадание':'Промах',
+      visualEffects: effects
+    }
   }
-  
-  getAvailableMoves(): Position[] {
-    // В этом состоянии нет доступных перемещений
-    return [];
-  }
-  
-  getAvailableTargets(): Position[] {
-    // В этом состоянии нет доступных целей для атаки
-    return [];
-  }
-  
-  isRoundComplete(): boolean {
-    // Раунд завершен после выполнения всех действий
-    return true;
-  }
+
+  getAvailableActions(): ActionType[] { return []; }
+  getAvailableMoves(): Position[] { return []; }
+  getAvailableTargets(): Position[] { return []; }
+  isRoundComplete() { return true; }
 }

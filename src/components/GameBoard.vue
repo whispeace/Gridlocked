@@ -111,7 +111,7 @@
         </div>
       </div>
 
-      <div class="player-action-panel player2" v-if="!gameEngine.hasPlayerSelected('player2')">
+      <div class="player-action-panel player2" v-if="false">
         <div class="player-label">Игрок 2</div>
         <div class="action-buttons">
           <button v-for="action in getAvailableActions('player2')" :key="action"
@@ -639,6 +639,10 @@ const executeAction = (actionType: ActionType, payload: any, playerId: string) =
     payload,
     timestamp: Date.now()
   })
+
+  if(playerId === 'player1' && !gameEngine.hasPlayerSelected('player2')){
+    autoChooseActionForAI();
+  }
 }
 // Получение имени действия
 const getActionName = (action: ActionType): string => {
@@ -681,6 +685,43 @@ const isActionAvailable = (action: ActionType, playerId: string): boolean => {
   }
   return true
 }
+
+function autoChooseActionForAI() {
+  const enemyId = 'player1';
+  const aiId = 'player2';
+  const aiPlayer = gameEngine.gameState.players[aiId];
+  const enemy = gameEngine.gameState.players[enemyId];
+
+  // Приоритет: если мало хп — защита
+  if(aiPlayer.resources.health < 30 || aiPlayer.resources.shield > 0 && Math.random() < 0.5){
+    executeAction('defend', null, aiId);
+    console.log('[AI] Игрок 2 выбрал защиту');
+    return;
+  }
+
+  // Еще патроны есть? Тогда атакуем:
+  const weapon = aiPlayer.weapons.find(w=>w.type === aiPlayer.activeWeapon);
+  if(weapon && aiPlayer.resources.ammo >= weapon.ammoPerShot){
+    // атакуем прямо в игрока
+    executeAction('attack', { targetPosition: enemy.position }, aiId);
+    console.log('[AI] Игрок 2 выбрал атаку');
+    return;
+  }
+
+  // Иначе, если можем двинуться - идём в случайную доступную точку
+  const moves = gameEngine.getAvailableMoves(aiId);
+  if(moves.length){
+    const move = moves[Math.floor(Math.random()*moves.length)];
+    executeAction('move', move, aiId);
+    console.log('[AI] Игрок 2 сделал случайный ход');
+    return;
+  }
+
+  // Ну а вдруг вообще ничего — тогда защита
+  executeAction('defend', null, aiId);
+  console.log('[AI] Игрок 2 пассивно встал в защиту');
+}
+
 </script>
 
 <style scoped>
