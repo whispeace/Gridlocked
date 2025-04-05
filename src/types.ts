@@ -63,7 +63,6 @@ export interface ActionResult {
   damage?: number;           // Нанесенный урон
   message?: string;          // Сообщение о результате
   visualEffects?: VisualEffect[]; // Визуальные эффекты
-  action: GameAction
 }
 
 // Визуальный эффект для отображения

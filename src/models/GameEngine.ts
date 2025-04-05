@@ -2,6 +2,7 @@ import { CoreGame } from './CoreGame'
 import { RuleEngine } from './RuleEngine'
 import { EventBus } from './EventBus'
 import { ActionManager } from './ActionManager'
+import { PlayersActionSelectionState, type GameStateInterface } from './states/GameStatePattern'
 
 import type { GameAction, ActionType, Position, ActionResult, Player, Weapon } from '../types'
 
@@ -13,6 +14,8 @@ export class GameEngine {
   public rules: RuleEngine
   public actionManager: ActionManager
   public events: EventBus
+  public currentState: GameStateInterface | null = null;
+  private pendingActions: Record<string, GameAction | null> = { player1: null, player2: null };
 
   constructor(initialState?: Partial<CoreGame['state']>) {
     this.core = new CoreGame(initialState)
@@ -58,53 +61,56 @@ export class GameEngine {
     this.core.resetPlayersDefense()
     this.actionManager.clearQueue()
     this.events.emit('roundStarted', { turn: 1 })
+
+    this.pendingActions = { player1: null, player2: null };
+    this.changeState(new PlayersActionSelectionState(this))    // <<< FSM старт
   }
 
-  submitAction(action: GameAction) {
-    this.actionManager.queueAction(action)
+  changeState(newState: GameStateInterface) {
+    if(this.currentState) this.currentState.exit();
+    this.currentState = newState;
+    this.currentState.enter();
   }
 
-  bothPlayersReady() {
-    return this.actionManager.bothPlayersReady()
+  resetPendingActions() {
+    this.pendingActions = { player1: null, player2: null };
   }
 
-  processTurn(): ActionResult[] {
-    const results = this.actionManager.executeQueue()
-    this.core.resetPlayersDefense()
-    this.actionManager.clearQueue()
-    this.core.state.turnNumber +=1
-    this.events.emit('roundStarted', { turn: this.core.state.turnNumber })
-    return results
+  getPendingActions(): GameAction[] {
+    return Object.values(this.pendingActions).filter(Boolean) as GameAction[]
   }
 
+  areBothPlayersReady(): boolean {
+    return !!(this.pendingActions.player1 && this.pendingActions.player2);
+  }
+
+  storePendingAction(action: GameAction): boolean {
+    const playerId = action.playerId;
+    if(this.pendingActions[playerId]) return false; // уже выбран ход
+    this.pendingActions[playerId] = action;
+    return true;
+  }
+
+  handleAction(action: GameAction): ActionResult {
+    if (!this.currentState) throw new Error('Game state is not initialized');
+    return this.currentState.handleAction(action);
+  }
+  
   getAvailableActions(playerId: string): ActionType[] {
-    const p = this.core.getPlayer(playerId)
-    if (!p) return []
-
-    const list: ActionType[] = ['move','defend']
-    if (this.rules.canAttack(p)) list.push('attack')
-    return list
+    return this.currentState?.getAvailableActions(playerId) ?? [];
   }
 
   getAvailableMoves(playerId: string): Position[] {
-    const p = this.core.getPlayer(playerId)
-    if (!p) return []
-
-    const { x,y } = p.position
-    const candidates = [
-      { x: x-1, y },
-      { x: x+1, y },
-      { x, y: y-1 },
-      { x, y: y+1 }
-    ]
-    return candidates.filter(pos => this.rules.canMove(p, pos))
+    return this.currentState?.getAvailableMoves(playerId) ?? [];
   }
 
   getAvailableTargets(playerId: string): Position[] {
-    const p = this.core.getPlayer(playerId)
-    if (!p) return []
+    return this.currentState?.getAvailableTargets(playerId) ?? [];
+  }
 
-    return this.rules.getAttackTargets(p)
+  incrementRound() {
+    this.core.state.turnNumber++;
+    this.resetPendingActions();
   }
 
   hasPlayerSelected(playerId: string) {

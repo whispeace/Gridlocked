@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
-import type { SpriteManager, AnimationType } from '../models/SpriteManager';
+import type { SpriteManager } from '../models/SpriteManager';
 import type { Position } from '../types';
 
 interface Props {

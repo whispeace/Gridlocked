@@ -92,7 +92,7 @@ export class PlayersActionSelectionState extends GameState {
       return {
         success: false,
         affectedPositions: [],
-        message: 'Невозможно выполнить действие'
+        message: 'Невозможно выполнить действие',
       };
     }
     
@@ -105,7 +105,7 @@ export class PlayersActionSelectionState extends GameState {
     return {
       success: true,
       affectedPositions: [],
-      message: `Действие ${action.type} выбрано`
+      message: `Действие ${action.type} выбрано`,
     };
   }
   
@@ -113,7 +113,7 @@ export class PlayersActionSelectionState extends GameState {
     if (!playerId) return [];
     
     // Получение доступных действий для конкретного игрока
-    const player = this.engine.gameState.value.players[playerId];
+    const player = this.engine.gameState.players[playerId];
     if (!player) return [];
     
     const actions: ActionType[] = ['move', 'defend'];
@@ -130,7 +130,7 @@ export class PlayersActionSelectionState extends GameState {
   getAvailableMoves(playerId: string): Position[] {
     if (!playerId) return [];
     
-    const player = this.engine.gameState.value.players[playerId];
+    const player = this.engine.gameState.players[playerId];
     if (!player) return [];
     
     const { x, y } = player.position;
@@ -158,7 +158,7 @@ export class PlayersActionSelectionState extends GameState {
   getAvailableTargets(playerId: string): Position[] {
     if (!playerId) return [];
     
-    const player = this.engine.gameState.value.players[playerId];
+    const player = this.engine.gameState.players[playerId];
     if (!player) return [];
     
     const weapon = player.weapons.find(w => w.type === player.activeWeapon);
@@ -174,7 +174,6 @@ export class PlayersActionSelectionState extends GameState {
     
     // Для дробовика и других сложных оружий возвращаем все доступные цели
     const targets: Position[] = [];
-    const isPlayerOne = playerId === 'player1';
     const { x, y } = player.position;
     
     for (let dx = -weapon.range; dx <= weapon.range; dx++) {
@@ -216,12 +215,12 @@ export class ActionsExecutionState extends GameState {
     this.actionResults = [];
   }
   
-  handleAction(action: GameAction): ActionResult {
+  handleAction(_action: GameAction): ActionResult {
     // В этом состоянии новые действия не принимаются
     return {
       success: false,
       affectedPositions: [],
-      message: 'Подождите, выполняются текущие действия'
+      message: 'Подождите, выполняются текущие действия',
     };
   }
   
@@ -272,7 +271,7 @@ export class ActionsExecutionState extends GameState {
    * Выполняет отдельное действие и возвращает результат
    */
   private executeAction(action: GameAction): ActionResult {
-    const player = this.engine.gameState.value.players[action.playerId];
+    const player = this.engine.gameState.players[action.playerId];
     
     switch(action.type) {
       case 'move':
@@ -285,7 +284,7 @@ export class ActionsExecutionState extends GameState {
         return {
           success: false,
           affectedPositions: [],
-          message: 'Неизвестное действие'
+          message: 'Неизвестное действие',
         };
     }
   }
@@ -297,7 +296,7 @@ export class ActionsExecutionState extends GameState {
     const targetPosition = action.payload as Position;
     
     // Проверяем, не выполнилось ли уже перемещение другого игрока на эту же клетку
-    const isOccupied = Object.values(this.engine.gameState.value.players).some(p => 
+    const isOccupied = Object.values(this.engine.gameState.players).some(p => 
       p.id !== player.id && 
       p.position.x === targetPosition.x && 
       p.position.y === targetPosition.y
@@ -307,7 +306,7 @@ export class ActionsExecutionState extends GameState {
       return {
         success: false,
         affectedPositions: [player.position],
-        message: 'Клетка уже занята другим игроком'
+        message: 'Клетка уже занята другим игроком',
       };
     }
     
@@ -318,7 +317,7 @@ export class ActionsExecutionState extends GameState {
     return {
       success: true,
       affectedPositions: [oldPosition, targetPosition],
-      message: 'Перемещение выполнено'
+      message: 'Перемещение выполнено',
     };
   }
   
@@ -336,7 +335,7 @@ export class ActionsExecutionState extends GameState {
       return {
         success: false,
         affectedPositions: [],
-        message: 'Нет активного оружия'
+        message: 'Нет активного оружия',
       };
     }
     
@@ -345,7 +344,7 @@ export class ActionsExecutionState extends GameState {
       return {
         success: false,
         affectedPositions: [],
-        message: 'Недостаточно патронов'
+        message: 'Недостаточно патронов',
       };
     }
     
@@ -355,7 +354,7 @@ export class ActionsExecutionState extends GameState {
     // Находим противника
     const isPlayerOne = player.id === 'player1';
     const enemyId = isPlayerOne ? 'player2' : 'player1';
-    const enemy = this.engine.gameState.value.players[enemyId];
+    const enemy = this.engine.gameState.players[enemyId];
     
     // Определяем цель атаки
     let targetPosition: Position;
@@ -417,7 +416,7 @@ export class ActionsExecutionState extends GameState {
     
     // Определение целей атаки (другие игроки в зоне поражения)
     // Ключевое исправление: проверяем попадание по противнику
-    const targetPlayers = Object.values(this.engine.gameState.value.players).filter(p =>
+    const targetPlayers = Object.values(this.engine.gameState.players).filter(p =>
       p.id !== player.id &&
       validAffectedPositions.some(pos => pos.x === p.position.x && pos.y === p.position.y)
     );
@@ -430,7 +429,7 @@ export class ActionsExecutionState extends GameState {
       позицияЦели: targetPosition,
       пораженныеПозиции: validAffectedPositions,
       пораженныеИгроки: targetPlayers.map(p => p.id),
-      позицииПротивников: Object.values(this.engine.gameState.value.players)
+      позицииПротивников: Object.values(this.engine.gameState.players)
         .filter(p => p.id !== player.id).map(p => `${p.id}: ${p.position.x},${p.position.y}`)
     });
     
@@ -489,14 +488,14 @@ export class ActionsExecutionState extends GameState {
       affectedPositions: validAffectedPositions,
       damage: weapon.damage,
       message: message,
-      visualEffects: visualEffects
+      visualEffects: visualEffects,
     };
   }
   
   /**
    * Выполняет действие защиты
    */
-  private executeDefend(player: Player, action: GameAction): ActionResult {
+  private executeDefend(player: Player, _action: GameAction): ActionResult {
     player.isDefending = true;
     
     return {

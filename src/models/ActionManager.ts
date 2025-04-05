@@ -59,7 +59,7 @@ export class ActionManager {
         if(result.success) this.bus.emit('playerAttacked',{playerId: player.id})
       }
       else{
-        result = {success: false, affectedPositions: [], message: 'Неизвестное действие', action: act }
+        result = {success: false, affectedPositions: [], message: 'Неизвестное действие' }
       }
 
       res.push(result)

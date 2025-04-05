@@ -633,49 +633,12 @@ const executeAction = (actionType: ActionType, payload: any, playerId: string) =
     // Для движения анимация запускается через executeAction в обработчике игрового движка
   }
 
-  if (gameEngine.bothPlayersReady()) {
-    const results = gameEngine.processTurn()
-
-
-    results.forEach(res => {
-      const playerId = res.action.playerId
-      const actionType = res.action.type
-
-
-      gameEngine.submitAction({
-        playerId,
-        type: actionType,
-        payload,
-        timestamp: Date.now()
-      })
-
-      if (res.success) {
-        const player = gameEngine.gameState.players[playerId]
-        if (actionType === 'move') {
-          spriteManager.playAnimation(playerId, 'walk', player.position)
-          setTimeout(() => {
-            if (!player.isDefending) {
-              spriteManager.playAnimation(playerId, 'idle', player.position)
-            }
-          }, 800)
-        } else if (actionType === 'defend') {
-          spriteManager.playAnimation(playerId, 'defend', player.position)
-        }
-
-        selectedActions[playerId] = null
-        availableMoves[playerId] = []
-        availableTargets[playerId] = []
-        statusMessages[playerId] = 'Ожидание других игроков...'
-
-      } else {
-        statusMessages[playerId] = res.message ?? 'Невозможно выполнить действие'
-        setTimeout(() => {
-          statusMessages[playerId] = 'Выберите действие'
-        }, 2000)
-      }
-    })
-
-  }
+  gameEngine.handleAction({
+    playerId,
+    type: actionType,
+    payload,
+    timestamp: Date.now()
+  })
 }
 // Получение имени действия
 const getActionName = (action: ActionType): string => {

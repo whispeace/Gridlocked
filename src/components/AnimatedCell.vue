@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { CellAnimator, CellAnimation } from '../models/CellAnimator';
+import type { CellAnimator } from '../models/CellAnimator';
 import type { Position } from '../types';
 
 interface Props {

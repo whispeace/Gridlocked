@@ -1,4 +1,4 @@
-import type { Player, Position, GameAction, ActionType, ActionResult } from '../types'
+import type { Player, Position, ActionResult } from '../types'
 import type { CoreGame } from './CoreGame'
 
 /**
