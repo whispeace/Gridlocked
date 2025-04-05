@@ -1,37 +1,61 @@
 <template>
   <div class="game-container">
-    <!-- Верхняя панель с информацией о ходе -->
+    <!-- Верхняя панель с информацией о раунде -->
     <div class="turn-indicator-panel">
-      <div class="turn-number">Ход: {{ currentTurn }}</div>
+      <div class="turn-number">Раунд: {{ gameEngine.gameState.value.turnNumber }}</div>
       <div class="action-tooltip" v-if="actionTooltip">{{ actionTooltip }}</div>
     </div>
 
     <!-- Основная секция игрового поля с панелями игроков по бокам -->
     <div class="main-section">
       <!-- Панель игрока 1 -->
-      <PlayerPanel :player-id="'player1'" :is-active="currentPlayerId === 'player1'"
-        :resources="gameEngine.gameState.value.players.player1?.resources" :active-weapon="getActiveWeapon('player1')"
-        :is-defending="gameEngine.gameState.value.players.player1?.isDefending" />
+      <PlayerPanel 
+        :player-id="'player1'" 
+        :is-active="!gameEngine.hasPlayerSelected('player1')"
+        :resources="gameEngine.gameState.value.players.player1?.resources" 
+        :active-weapon="getActiveWeapon('player1')"
+        :is-defending="gameEngine.gameState.value.players.player1?.isDefending" 
+      />
 
       <!-- Игровое поле -->
       <div class="game-board">
         <div class="grid">
           <div v-for="y in 3" :key="`row-${y}`" class="grid-row">
             <!-- Поле игрока 1 -->
-            <div v-for="x in 3" :key="`cell-p1-${x - 1}-${y - 1}`" class="grid-cell"
-              :class="getCellClasses(x - 1, y - 1)" @click="handleCellClick(x - 1, y - 1)"
-              @mouseover="handleCellHover(x - 1, y - 1)" @mouseleave="handleCellLeave">
+            <div 
+              v-for="x in 3" 
+              :key="`cell-p1-${x - 1}-${y - 1}`" 
+              class="grid-cell"
+              :class="getCellClasses(x - 1, y - 1, 'player1')" 
+              @click="handleCellClick(x - 1, y - 1, 'player1')"
+              @mouseover="handleCellHover(x - 1, y - 1, 'player1')" 
+              @mouseleave="handleCellLeave"
+            >
               <AnimatedCell :position="{ x: x - 1, y: y - 1 }" :cell-animator="cellAnimator" />
-              <AnimatedPlayer v-if="isPlayerAt('player1', x - 1, y - 1)" ref="player1Ref" playerId="player1"
-                :position="gameEngine.gameState.value.players.player1.position" :sprite-manager="spriteManager"
-                :is-defending="gameEngine.gameState.value.players.player1?.isDefending" />
+              
+              <AnimatedPlayer 
+                v-if="isPlayerAt('player1', x - 1, y - 1)" 
+                ref="player1Ref" 
+                playerId="player1"
+                :position="gameEngine.gameState.value.players.player1.position" 
+                :sprite-manager="spriteManager"
+                :is-defending="gameEngine.gameState.value.players.player1?.isDefending" 
+              />
 
-              <AnimatedPlayer v-if="isPlayerAt('player2', x - 1, y - 1)" ref="player2Ref" playerId="player2"
-                :position="gameEngine.gameState.value.players.player2.position" :sprite-manager="spriteManager"
-                :is-defending="gameEngine.gameState.value.players.player2?.isDefending" />
+              <AnimatedPlayer 
+                v-if="isPlayerAt('player2', x - 1, y - 1)" 
+                ref="player2Ref" 
+                playerId="player2"
+                :position="gameEngine.gameState.value.players.player2.position" 
+                :sprite-manager="spriteManager"
+                :is-defending="gameEngine.gameState.value.players.player2?.isDefending" 
+              />
 
-              <div v-if="getCellTerrain(x - 1, y - 1).type !== 'empty'" class="terrain-marker"
-                :class="getCellTerrain(x - 1, y - 1).type">
+              <div 
+                v-if="getCellTerrain(x - 1, y - 1).type !== 'empty'" 
+                class="terrain-marker"
+                :class="getCellTerrain(x - 1, y - 1).type"
+              >
                 {{ getTerrainSymbol(getCellTerrain(x - 1, y - 1).type) }}
               </div>
             </div>
@@ -40,72 +64,145 @@
             <div class="board-divider"></div>
 
             <!-- Поле игрока 2 -->
-            <div v-for="x in 3" :key="`cell-p2-${x + 2}-${y - 1}`" class="grid-cell"
-              :class="getCellClasses(x + 2, y - 1)" @click="handleCellClick(x + 2, y - 1)"
-              @mouseover="handleCellHover(x + 2, y - 1)" @mouseleave="handleCellLeave">
-
+            <div 
+              v-for="x in 3" 
+              :key="`cell-p2-${x + 2}-${y - 1}`" 
+              class="grid-cell"
+              :class="getCellClasses(x + 2, y - 1, 'player2')" 
+              @click="handleCellClick(x + 2, y - 1, 'player2')"
+              @mouseover="handleCellHover(x + 2, y - 1, 'player2')" 
+              @mouseleave="handleCellLeave"
+            >
               <AnimatedCell :position="{ x: x + 2, y: y - 1 }" :cell-animator="cellAnimator" />
-              <AnimatedPlayer v-if="isPlayerAt('player1', x + 2, y - 1)" ref="player1Ref" playerId="player1"
-                :position="gameEngine.gameState.value.players.player1.position" :sprite-manager="spriteManager"
-                :is-defending="gameEngine.gameState.value.players.player1?.isDefending" />
+              
+              <AnimatedPlayer 
+                v-if="isPlayerAt('player1', x + 2, y - 1)" 
+                ref="player1Ref" 
+                playerId="player1"
+                :position="gameEngine.gameState.value.players.player1.position" 
+                :sprite-manager="spriteManager"
+                :is-defending="gameEngine.gameState.value.players.player1?.isDefending" 
+              />
 
-              <AnimatedPlayer v-if="isPlayerAt('player2', x + 2, y - 1)" ref="player2Ref" playerId="player2"
-                :position="gameEngine.gameState.value.players.player2.position" :sprite-manager="spriteManager"
-                :is-defending="gameEngine.gameState.value.players.player2?.isDefending" />
+              <AnimatedPlayer 
+                v-if="isPlayerAt('player2', x + 2, y - 1)" 
+                ref="player2Ref" 
+                playerId="player2"
+                :position="gameEngine.gameState.value.players.player2.position" 
+                :sprite-manager="spriteManager"
+                :is-defending="gameEngine.gameState.value.players.player2?.isDefending" 
+              />
 
-              <div v-if="getCellTerrain(x + 2, y - 1).type !== 'empty'" class="terrain-marker"
-                :class="getCellTerrain(x + 2, y - 1).type">
+              <div 
+                v-if="getCellTerrain(x + 2, y - 1).type !== 'empty'" 
+                class="terrain-marker"
+                :class="getCellTerrain(x + 2, y - 1).type"
+              >
                 {{ getTerrainSymbol(getCellTerrain(x + 2, y - 1).type) }}
               </div>
             </div>
           </div>
         </div>
+        
         <!-- Контейнер для всех визуальных эффектов -->
         <div class="effects-container">
           <!-- Визуальные эффекты (взрывы, щиты, лечение) -->
           <template v-for="effect in effectsManager.getAllEffects()" :key="effect.id">
-            <div class="effect-wrapper" :style="{
-              left: `${effect.position.x * CELL_SIZE}px`,
-              top: `${effect.position.y * CELL_SIZE}px`
-            }">
+            <div 
+              class="effect-wrapper" 
+              :style="{
+                left: `${effect.position.x * CELL_SIZE}px`,
+                top: `${effect.position.y * CELL_SIZE}px`
+              }"
+            >
               <VisualEffectComponent :effect="effect" />
             </div>
           </template>
 
           <!-- Летящие снаряды -->
           <template v-for="projectile in projectileManager.getActiveProjectiles()" :key="projectile.id">
-            <ProjectileComponent :projectile="projectile" :projectile-manager="projectileManager"
-              :cell-size="CELL_SIZE" />
+            <ProjectileComponent 
+              :projectile="projectile" 
+              :projectile-manager="projectileManager"
+              :cell-size="CELL_SIZE" 
+            />
           </template>
         </div>
 
-
         <!-- Подсказка при наведении на клетку -->
-        <div v-if="hoverInfo" class="cell-tooltip" :style="{ top: hoverInfo.y + 'px', left: hoverInfo.x + 'px' }">
+        <div 
+          v-if="hoverInfo" 
+          class="cell-tooltip" 
+          :style="{ top: hoverInfo.y + 'px', left: hoverInfo.x + 'px' }"
+        >
           {{ hoverInfo.message }}
         </div>
       </div>
 
       <!-- Панель игрока 2 -->
-      <PlayerPanel :player-id="'player2'" :is-active="currentPlayerId === 'player2'"
-        :resources="gameEngine.gameState.value.players.player2?.resources" :active-weapon="getActiveWeapon('player2')"
-        :is-defending="gameEngine.gameState.value.players.player2?.isDefending" />
+      <PlayerPanel 
+        :player-id="'player2'" 
+        :is-active="!gameEngine.hasPlayerSelected('player2')"
+        :resources="gameEngine.gameState.value.players.player2?.resources" 
+        :active-weapon="getActiveWeapon('player2')"
+        :is-defending="gameEngine.gameState.value.players.player2?.isDefending" 
+      />
     </div>
 
-    <!-- Панель действий -->
-    <div class="action-panel">
-      <div class="action-buttons">
-        <button v-for="action in availableActions" :key="action" @click="selectAction(action)"
-          :class="{ active: selectedAction === action, disabled: !isActionAvailable(action) }"
-          :disabled="!isActionAvailable(action)" :title="getActionTooltip(action)">
-          <div class="action-icon">{{ getActionIcon(action) }}</div>
-          <span>{{ getActionName(action) }}</span>
-        </button>
+    <!-- Панель действий (показываем для игроков, которые еще не выбрали действие) -->
+    <div class="action-panels">
+      <div class="player-action-panel player1" v-if="!gameEngine.hasPlayerSelected('player1')">
+        <div class="player-label">Игрок 1</div>
+        <div class="action-buttons">
+          <button 
+            v-for="action in getAvailableActions('player1')" 
+            :key="action" 
+            @click="selectAction(action, 'player1')"
+            :class="{ active: selectedActions.player1 === action, disabled: !isActionAvailable(action, 'player1') }"
+            :disabled="!isActionAvailable(action, 'player1')" 
+            :title="getActionTooltip(action, 'player1')"
+          >
+            <div class="action-icon">{{ getActionIcon(action) }}</div>
+            <span>{{ getActionName(action) }}</span>
+          </button>
+        </div>
+        <div class="status-message">
+          <p v-if="statusMessages.player1">{{ statusMessages.player1 }}</p>
+          <p v-else>Выберите действие</p>
+        </div>
       </div>
-
-      <div class="status-message">
-        <p v-if="statusMessage">{{ statusMessage }}</p>
-        <p v-else>Выберите действие</p>
+      
+      <div class="player-action-panel player2" v-if="!gameEngine.hasPlayerSelected('player2')">
+        <div class="player-label">Игрок 2</div>
+        <div class="action-buttons">
+          <button 
+            v-for="action in getAvailableActions('player2')" 
+            :key="action" 
+            @click="selectAction(action, 'player2')"
+            :class="{ active: selectedActions.player2 === action, disabled: !isActionAvailable(action, 'player2') }"
+            :disabled="!isActionAvailable(action, 'player2')" 
+            :title="getActionTooltip(action, 'player2')"
+          >
+            <div class="action-icon">{{ getActionIcon(action) }}</div>
+            <span>{{ getActionName(action) }}</span>
+          </button>
+        </div>
+        <div class="status-message">
+          <p v-if="statusMessages.player2">{{ statusMessages.player2 }}</p>
+          <p v-else>Выберите действие</p>
+        </div>
+      </div>
+      
+      <!-- Индикатор ожидания для игроков, которые уже выбрали действие -->
+      <div class="waiting-panel" v-if="gameEngine.hasPlayerSelected('player1') || gameEngine.hasPlayerSelected('player2')">
+        <template v-if="gameEngine.hasPlayerSelected('player1') && gameEngine.hasPlayerSelected('player2')">
+          <div class="executing-message">Выполнение действий...</div>
+        </template>
+        <template v-else>
+          <div class="waiting-message">
+            {{ gameEngine.hasPlayerSelected('player1') ? 'Игрок 1 ждет выбора Игрока 2' : 'Игрок 2 ждет выбора Игрока 1' }}
+          </div>
+        </template>
       </div>
     </div>
 
@@ -123,6 +220,14 @@
             <li><strong>Переместиться</strong> - двигайтесь на 1 клетку вверх, вниз, влево или вправо.</li>
             <li><strong>Атаковать</strong> - используйте оружие для нанесения урона противнику.</li>
             <li><strong>Защититься</strong> - активируйте щит, чтобы заблокировать следующую атаку.</li>
+          </ul>
+
+          <h3>Особенности игры:</h3>
+          <ul>
+            <li>Оба игрока выбирают действия одновременно.</li>
+            <li>Действия выполняются в порядке: защита → атака → перемещение.</li>
+            <li>При выборе "Переместиться" кликните на подсвеченную клетку.</li>
+            <li>Простое оружие стреляет автоматически в направлении противника.</li>
           </ul>
 
           <h3>Типы оружия:</h3>
@@ -146,7 +251,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, reactive } from 'vue'
 import { GameEngine } from '../models/GameEngine'
 import type { ActionType, Position, Terrain } from '../types'
 import PlayerPanel from './PlayerPanel.vue'
@@ -164,20 +269,25 @@ import AnimatedCell from './AnimatedCell.vue'
 const gameEngine = new GameEngine()
 
 // Состояние компонента
-const selectedAction = ref<ActionType | null>(null)
-const availableMoves = ref<Position[]>([])
-const availableTargets = ref<Position[]>([])
-const statusMessage = ref<string>('')
+const selectedActions = reactive<Record<string, ActionType | null>>({
+  player1: null,
+  player2: null
+})
+const availableMoves = reactive<Record<string, Position[]>>({
+  player1: [],
+  player2: []
+})
+const availableTargets = reactive<Record<string, Position[]>>({
+  player1: [],
+  player2: []
+})
+const statusMessages = reactive<Record<string, string>>({
+  player1: '',
+  player2: ''
+})
 const actionTooltip = ref<string>('')
 const showHelp = ref<boolean>(false)
 const hoverInfo = ref<{ x: number, y: number, message: string } | null>(null)
-
-// Вычисляемые свойства
-const currentPlayerId = computed(() => gameEngine.gameState.value.currentTurn)
-const currentTurn = computed(() =>
-  `${gameEngine.gameState.value.turnNumber} - ${currentPlayerId.value === 'player1' ? 'Игрок 1' : 'Игрок 2'}`
-)
-const availableActions = computed(() => gameEngine.getAvailableActions())
 
 // Создаем менеджер спрайтов
 const spriteManager = new SpriteManager()
@@ -186,25 +296,28 @@ const spriteManager = new SpriteManager()
 const player1Ref = ref<InstanceType<typeof AnimatedPlayer> | null>(null)
 const player2Ref = ref<InstanceType<typeof AnimatedPlayer> | null>(null)
 
+// Размер клетки
+const CELL_SIZE = 80
+
+// Создаем менеджеры эффектов и снарядов
+const effectsManager = new EffectsManager()
+const projectileManager = new ProjectileManager()
+const cellAnimator = new CellAnimator()
+
 // Инициализация при монтировании компонента
 onMounted(() => {
   // Регистрируем спрайты игроков
   spriteManager.registerPlayerSprite('player1', player1SpriteConfig)
   spriteManager.registerPlayerSprite('player2', player2SpriteConfig)
 
-  statusMessage.value = `Ход игрока ${currentPlayerId.value === 'player1' ? '1' : '2'}`
-
   // Показ приветственной подсказки
-  actionTooltip.value = 'Выберите действие для начала игры'
+  actionTooltip.value = 'Оба игрока выбирают свои действия одновременно'
   setTimeout(() => { actionTooltip.value = '' }, 4000)
+
+  // Подсвечиваем доступные клетки для перемещения обоих игроков
+  highlightAvailableMoves('player1')
+  highlightAvailableMoves('player2')
 })
-
-const CELL_SIZE = 80 // Размер клетки в пикселях
-
-// Создаем менеджеры эффектов и снарядов
-const effectsManager = new EffectsManager()
-const projectileManager = new ProjectileManager()
-const cellAnimator = new CellAnimator()
 
 // Методы работы с ресурсами
 const getActiveWeapon = (playerId: string) => {
@@ -224,11 +337,12 @@ const isPlayerAt = (playerId: string, x: number, y: number) => {
   return player?.position.x === x && player?.position.y === y
 }
 
-const isCurrentPlayerAt = (x: number, y: number) => {
-  return isPlayerAt(currentPlayerId.value, x, y)
+// Получение доступных действий для игрока
+const getAvailableActions = (playerId: string): ActionType[] => {
+  return gameEngine.getAvailableActions(playerId)
 }
 
-
+// Получение символа для типа местности
 const getTerrainSymbol = (terrainType: string): string => {
   const symbols: Record<string, string> = {
     'empty': '',
@@ -239,73 +353,72 @@ const getTerrainSymbol = (terrainType: string): string => {
   return symbols[terrainType] || ''
 }
 
-const isMoveTarget = (x: number, y: number) => {
-  if (!availableMoves.value || availableMoves.value.length === 0) {
-    return false;
+// Проверка, является ли клетка целью для перемещения
+const isMoveTarget = (x: number, y: number, playerId: string) => {
+  if (!availableMoves[playerId] || availableMoves[playerId].length === 0) {
+    return false
   }
-  return selectedAction.value === 'move' &&
-    availableMoves.value.some(pos => pos.x === x && pos.y === y);
-};
+  return selectedActions[playerId] === 'move' &&
+    availableMoves[playerId].some(pos => pos.x === x && pos.y === y)
+}
 
-const isAttackTarget = (x: number, y: number) => {
-  if (!availableTargets.value || availableTargets.value.length === 0) {
-    return false;
+// Проверка, является ли клетка целью для атаки
+const isAttackTarget = (x: number, y: number, playerId: string) => {
+  if (!availableTargets[playerId] || availableTargets[playerId].length === 0) {
+    return false
   }
-  return selectedAction.value === 'attack' &&
-    availableTargets.value.some(pos => pos.x === x && pos.y === y);
-};
+  return selectedActions[playerId] === 'attack' &&
+    availableTargets[playerId].some(pos => pos.x === x && pos.y === y)
+}
 
-/**
- * Возвращает информацию о типе местности на указанной клетке
- * Безопасно обрабатывает случаи выхода за границы поля
- */
+// Получение типа местности на клетке
 const getCellTerrain = (x: number, y: number): Terrain => {
-  // Проверяем, что массив terrain существует
   if (!gameEngine?.gameState?.value?.terrain) {
     return { type: 'empty' }
   }
-
-  // Используем опциональную цепочку для безопасного доступа
   return gameEngine.gameState.value.terrain[x]?.[y] || { type: 'empty' }
 }
 
-
-const getCellClasses = (x: number, y: number) => {
+// Определение CSS-классов для клетки
+const getCellClasses = (x: number, y: number, playerId: string) => {
   return {
-    'player-cell': isPlayerAt(currentPlayerId.value, x, y),
-    'enemy-cell': isPlayerAt(currentPlayerId.value === 'player1' ? 'player2' : 'player1', x, y),
-    'active-cell': isCurrentPlayerAt(x, y),
-    'move-target': isMoveTarget(x, y),
-    'attack-target': isAttackTarget(x, y),
+    'player-cell': isPlayerAt(playerId, x, y),
+    'enemy-cell': isPlayerAt(playerId === 'player1' ? 'player2' : 'player1', x, y),
+    'active-cell': isPlayerAt(playerId, x, y) && !gameEngine.hasPlayerSelected(playerId),
+    'move-target': isMoveTarget(x, y, playerId),
+    'attack-target': isAttackTarget(x, y, playerId),
     'player1-zone': x <= 2,
     'player2-zone': x >= 3,
     'cover-cell': getCellTerrain(x, y).type === 'cover',
     'damage-cell': getCellTerrain(x, y).type === 'damage',
-    'bonus-cell': getCellTerrain(x, y).type === 'bonus'
+    'bonus-cell': getCellTerrain(x, y).type === 'bonus',
+    'available-move': selectedActions[playerId] !== 'move' && !gameEngine.hasPlayerSelected(playerId) && 
+      gameEngine.getAvailableMoves(playerId).some(pos => pos.x === x && pos.y === y)
   }
 }
 
-// Обработчики интерфейса
-const handleCellHover = (x: number, y: number) => {
+// Обработчик наведения на клетку
+const handleCellHover = (x: number, y: number, playerId: string) => {
   const cellElement = event?.target as HTMLElement
   if (!cellElement) return
 
   const position = { x, y }
 
   // Подсвечиваем клетку при наведении, если это цель действия
-  if (isMoveTarget(x, y)) {
+  if (isMoveTarget(x, y, playerId)) {
     cellAnimator.highlightCell(position, '#3498db', 300)
-  } else if (isAttackTarget(x, y)) {
+  } else if (isAttackTarget(x, y, playerId)) {
     cellAnimator.highlightCell(position, '#e74c3c', 300)
   }
 
-  // Оригинальный код подсказки...
+  // Подсказка при наведении
   const rect = cellElement.getBoundingClientRect()
   let message = ''
 
-  if (isMoveTarget(x, y)) {
+  // Формирование текста подсказки
+  if (isMoveTarget(x, y, playerId)) {
     message = 'Переместиться сюда'
-  } else if (isAttackTarget(x, y)) {
+  } else if (isAttackTarget(x, y, playerId)) {
     message = 'Атаковать эту клетку'
   } else if (isPlayerAt('player1', x, y)) {
     message = 'Игрок 1'
@@ -324,6 +437,12 @@ const handleCellHover = (x: number, y: number) => {
       'bonus': 'Бонус'
     }
     message = terrainTypes[getCellTerrain(x, y).type as keyof typeof terrainTypes] || ''
+  } else if (
+    selectedActions[playerId] !== 'move' && 
+    !gameEngine.hasPlayerSelected(playerId) && 
+    gameEngine.getAvailableMoves(playerId).some(pos => pos.x === x && pos.y === y)
+  ) {
+    message = 'Доступная клетка для перемещения'
   }
 
   if (message) {
@@ -335,108 +454,216 @@ const handleCellHover = (x: number, y: number) => {
   }
 }
 
+// Сброс подсказки при уходе курсора с клетки
 const handleCellLeave = () => {
   hoverInfo.value = null
 }
 
-// Методы для действий
-const selectAction = (action: ActionType) => {
-  selectedAction.value = action
-
-  // Сброс целей
-  availableMoves.value = []
-  availableTargets.value = []
-
-  // ИСПРАВЛЕНИЕ: сначала выполняем действие выбора для переключения состояния
-  gameEngine.executeAction({
-    playerId: currentPlayerId.value,
-    type: action,
-    payload: { selectOnly: true }, // Дополнительный флаг, чтобы указать, что это только выбор действия
-    timestamp: Date.now()
+// Подсвечивание доступных клеток для перемещения
+const highlightAvailableMoves = (playerId: string) => {
+  const moves = gameEngine.getAvailableMoves(playerId)
+  moves.forEach(pos => {
+    cellAnimator.highlightCell(pos, '#3498db4d', 4000)
   })
+}
 
-  // Обновление подсказок и получение возможных ходов/целей
+// Выбор действия игроком
+const selectAction = (action: ActionType, playerId: string) => {
+  selectedActions[playerId] = action
+
+  // Сброс доступных целей
+  availableMoves[playerId] = []
+  availableTargets[playerId] = []
+
   if (action === 'move') {
-    statusMessage.value = 'Выберите клетку для перемещения'
-    // ИСПРАВЛЕНИЕ: получаем доступные ходы после смены состояния
-    availableMoves.value = gameEngine.getAvailableMoves()
+    statusMessages[playerId] = 'Выберите клетку для перемещения'
+    availableMoves[playerId] = gameEngine.getAvailableMoves(playerId)
 
     // Анимируем доступные клетки
-    availableMoves.value.forEach(pos => {
+    availableMoves[playerId].forEach(pos => {
       cellAnimator.highlightCell(pos, '#3498db', 2000)
     })
   } else if (action === 'attack') {
-    statusMessage.value = 'Выберите цель для атаки'
-    // ИСПРАВЛЕНИЕ: получаем доступные цели после смены состояния
-    availableTargets.value = gameEngine.getAvailableTargets()
-
-    // Анимируем доступные цели
-    availableTargets.value.forEach(pos => {
-      cellAnimator.highlightCell(pos, '#e74c3c', 2000)
-    })
+    // Получаем доступные цели и активное оружие
+    availableTargets[playerId] = gameEngine.getAvailableTargets(playerId)
+    const player = gameEngine.gameState.value.players[playerId]
+    const weapon = player.weapons.find(w => w.type === player.activeWeapon)
+    
+    // Получаем позицию противника для визуализации эффектов
+    const enemyId = playerId === 'player1' ? 'player2' : 'player1'
+    const enemy = gameEngine.gameState.value.players[enemyId]
+    
+    // Проверяем, нужно ли выбирать цель (дробовик требует выбора)
+    if (availableTargets[playerId].length > 0 && weapon?.type === 'shotgun') {
+      // Только для дробовика игрок должен выбрать цель
+      statusMessages[playerId] = 'Выберите цель для атаки'
+      
+      // Анимируем доступные цели
+      availableTargets[playerId].forEach(pos => {
+        cellAnimator.highlightCell(pos, '#e74c3c', 2000)
+      })
+    } else {
+      // Для простого оружия (пистолет, снайпер, пулемет) выполняем атаку автоматически
+      statusMessages[playerId] = 'Атака противника...'
+      
+      // Определяем направление атаки
+      const playerPos = player.position
+      const enemyPos = enemy.position
+      
+      // Создаём эффект "пути" выстрела от позиции игрока к противнику
+      const diffX = enemyPos.x - playerPos.x
+      const diffY = enemyPos.y - playerPos.y
+      const isHorizontal = Math.abs(diffX) >= Math.abs(diffY)
+      
+      if (isHorizontal) {
+        // Горизонтальный выстрел
+        const step = diffX > 0 ? 1 : -1
+        for (let i = 1; i <= Math.abs(diffX); i++) {
+          const effectPos = { x: playerPos.x + (i * step), y: playerPos.y }
+          cellAnimator.highlightCell(effectPos, '#e74c3c', 300 + i * 100)
+        }
+      } else {
+        // Вертикальный выстрел
+        const step = diffY > 0 ? 1 : -1
+        for (let i = 1; i <= Math.abs(diffY); i++) {
+          const effectPos = { x: playerPos.x, y: playerPos.y + (i * step) }
+          cellAnimator.highlightCell(effectPos, '#e74c3c', 300 + i * 100)
+        }
+      }
+      
+      // Непосредственно передаем позицию противника для гарантированного попадания
+      const targetPayload = { targetPosition: { ...enemyPos } }
+      
+      // Создаем действие атаки с указанием конкретной цели
+      executeAction('attack', targetPayload, playerId)
+    }
   } else if (action === 'defend') {
-    statusMessage.value = 'Активация защиты...'
+    statusMessages[playerId] = 'Активация защиты...'
 
     // Анимируем защиту на клетке игрока
-    const playerPos = gameEngine.gameState.value.players[currentPlayerId.value].position
+    const playerPos = gameEngine.gameState.value.players[playerId].position
     cellAnimator.highlightCell(playerPos, '#2ecc71', 800)
 
-    executeAction('defend', null)
+    executeAction('defend', null, playerId)
   }
 }
 
-// Исправленный метод handleCellClick
-const handleCellClick = (x: number, y: number) => {
+// Обработчик клика по клетке
+const handleCellClick = (x: number, y: number, playerId: string) => {
+  // Если игрок уже выбрал действие, игнорируем клик
+  if (gameEngine.hasPlayerSelected(playerId)) {
+    return
+  }
+
   const position = { x, y }
 
   // Анимация клетки при клике
   cellAnimator.highlightCell(position, '#fff', 300)
 
-  // Важно: сохраняем оригинальную логику выбора действий
-  if (selectedAction.value === 'move' && isMoveTarget(x, y)) {
-    executeAction('move', position)
-  } else if (selectedAction.value === 'attack' && isAttackTarget(x, y)) {
-    executeAction('attack', position)
-  } else if (!selectedAction.value && isCurrentPlayerAt(x, y)) {
-    // Если игрок кликнул на своей фигуре без выбранного действия
-    selectAction('move')
-    actionTooltip.value = 'Выберите, куда переместиться'
+  // Обработка клика в зависимости от выбранного действия
+  if (selectedActions[playerId] === 'move' && isMoveTarget(x, y, playerId)) {
+    executeAction('move', position, playerId)
+  } else if (selectedActions[playerId] === 'attack' && isAttackTarget(x, y, playerId)) {
+    executeAction('attack', position, playerId)
+  } else if (!selectedActions[playerId] && isPlayerAt(playerId, x, y)) {
+    // Подсказка о выборе действия при клике на своего игрока
+    actionTooltip.value = `Игрок ${playerId === 'player1' ? '1' : '2'}: выберите действие внизу`
     setTimeout(() => { actionTooltip.value = '' }, 3000)
-  } else if (!selectedAction.value) {
-    // Если игрок кликнул на случайной клетке без выбранного действия
-    actionTooltip.value = 'Сначала выберите действие внизу'
+  } else if (
+    !selectedActions[playerId] && 
+    gameEngine.getAvailableMoves(playerId).some(pos => pos.x === x && pos.y === y)
+  ) {
+    // Если кликнули на доступную для перемещения клетку, выбираем действие "переместиться"
+    // и сразу выполняем перемещение
+    selectedActions[playerId] = 'move'
+    executeAction('move', position, playerId)
+  } else if (!selectedActions[playerId]) {
+    // Подсказка о выборе действия
+    actionTooltip.value = `Игрок ${playerId === 'player1' ? '1' : '2'}: выберите действие внизу`
     setTimeout(() => { actionTooltip.value = '' }, 3000)
   }
 }
 
-// Обновленная версия executeAction, сохраняющая базовую функциональность
-const executeAction = (actionType: ActionType, payload: any) => {
+// Выполнение действия
+const executeAction = (actionType: ActionType, payload: any, playerId: string) => {
   // Получаем текущего игрока и его позицию
-  const currentPlayer = gameEngine.gameState.value.players[currentPlayerId.value]
-  const playerPosition = currentPlayer.position
-
+  const player = gameEngine.gameState.value.players[playerId]
+  const playerPosition = player.position
 
   // Создаем визуальные эффекты в зависимости от типа действия
   if (actionType === 'attack') {
-    const targetPosition = payload as Position
-
-    // Создаем эффект снаряда
-    const weapon = currentPlayer.weapons.find(w => w.type === currentPlayer.activeWeapon)
+    // Добавляем начальный эффект выстрела от позиции игрока
+    const weapon = player.weapons.find(w => w.type === player.activeWeapon)
+    
+    // Создаем анимацию атаки у спрайта игрока
+    // if (playerId === 'player1' && player1Ref.value) {
+    //   player1Ref.value.playAnimation('attack')
+    // } else if (playerId === 'player2' && player2Ref.value) {
+    //   player2Ref.value.playAnimation('attack')
+    // }
+    
+    // Определяем цель атаки
+    let targetPos: Position
+    
+    if (payload && typeof payload === 'object') {
+      if ('x' in payload && 'y' in payload) {
+        // Если передана конкретная позиция
+        targetPos = payload as Position
+      } else if (payload.targetPosition) {
+        // Если передана цель в объекте payload
+        targetPos = payload.targetPosition
+      } else {
+        // Позиция противника по умолчанию
+        const enemyId = playerId === 'player1' ? 'player2' : 'player1'
+        targetPos = { ...gameEngine.gameState.value.players[enemyId].position }
+      }
+    } else {
+      // Позиция противника по умолчанию
+      const enemyId = playerId === 'player1' ? 'player2' : 'player1'
+      targetPos = { ...gameEngine.gameState.value.players[enemyId].position }
+    }
+    
+    // Создаем соответствующий проектиль в зависимости от оружия
     if (weapon) {
-      // Выбираем тип снаряда в зависимости от оружия
       switch (weapon.type) {
         case 'pistol':
-          projectileManager.createBullet(playerPosition, targetPosition)
+          projectileManager.createBullet(playerPosition, targetPos)
           break
         case 'shotgun':
           // Для дробовика создаем несколько снарядов
-          projectileManager.createBullet(playerPosition, targetPosition)
+          projectileManager.createBullet(playerPosition, targetPos)
+          if (playerId === 'player1') {
+            projectileManager.createBullet(
+              playerPosition, 
+              { x: targetPos.x, y: targetPos.y - 1 }
+            )
+            projectileManager.createBullet(
+              playerPosition, 
+              { x: targetPos.x, y: targetPos.y + 1 }
+            )
+          } else {
+            projectileManager.createBullet(
+              playerPosition, 
+              { x: targetPos.x, y: targetPos.y - 1 }
+            )
+            projectileManager.createBullet(
+              playerPosition, 
+              { x: targetPos.x, y: targetPos.y + 1 }
+            )
+          }
           break
         case 'sniper':
-          projectileManager.createLaser(playerPosition, targetPosition)
+          projectileManager.createLaser(playerPosition, targetPos)
           break
         case 'machinegun':
-          projectileManager.createBullet(playerPosition, targetPosition)
+          // Для пулемета создаем несколько снарядов с небольшой задержкой
+          projectileManager.createBullet(playerPosition, targetPos)
+          setTimeout(() => {
+            projectileManager.createBullet(playerPosition, targetPos)
+          }, 100)
+          setTimeout(() => {
+            projectileManager.createBullet(playerPosition, targetPos)
+          }, 200)
           break
       }
     }
@@ -445,42 +672,33 @@ const executeAction = (actionType: ActionType, payload: any) => {
     effectsManager.createShield(playerPosition)
   }
 
+  // Выполнение действия
   const result = gameEngine.executeAction({
-    playerId: currentPlayerId.value,
+    playerId,
     type: actionType,
     payload,
     timestamp: Date.now()
   })
 
   if (result.success) {
-    // Установка временного сообщения об успехе
-    const actionMessages = {
-      'move': 'Вы переместились',
-      'attack': 'Атака выполнена',
-      'defend': 'Защита активирована'
-    }
+    // Сброс выбранного действия
+    selectedActions[playerId] = null
+    availableMoves[playerId] = []
+    availableTargets[playerId] = []
 
-    statusMessage.value = actionMessages[actionType]
-
-    // Сброс выбранного действия и доступных целей
-    selectedAction.value = null
-    availableMoves.value = []
-    availableTargets.value = []
-
-    // Очистка статусного сообщения через 2 секунды
-    setTimeout(() => {
-      statusMessage.value = `Ход игрока ${currentPlayerId.value === 'player1' ? '1' : '2'}`
-    }, 2000)
+    // Обновление статусного сообщения
+    statusMessages[playerId] = `Ожидание других игроков...`
   } else {
-    statusMessage.value = result.message || 'Невозможно выполнить действие'
+    statusMessages[playerId] = result.message || 'Невозможно выполнить действие'
     setTimeout(() => {
-      statusMessage.value = `Ход игрока ${currentPlayerId.value === 'player1' ? '1' : '2'}`
+      statusMessages[playerId] = 'Выберите действие'
     }, 2000)
   }
 
   return result.success
 }
 
+// Получение имени действия
 const getActionName = (action: ActionType): string => {
   const actionNames: Record<ActionType, string> = {
     'move': 'Переместиться',
@@ -490,6 +708,7 @@ const getActionName = (action: ActionType): string => {
   return actionNames[action]
 }
 
+// Получение иконки для действия
 const getActionIcon = (action: ActionType): string => {
   const actionIcons: Record<ActionType, string> = {
     'move': '⟷',
@@ -499,18 +718,20 @@ const getActionIcon = (action: ActionType): string => {
   return actionIcons[action]
 }
 
-const getActionTooltip = (action: ActionType): string => {
+// Получение подсказки для действия
+const getActionTooltip = (action: ActionType, playerId: string): string => {
   const tooltips: Record<ActionType, string> = {
     'move': 'Переместиться на соседнюю клетку',
-    'attack': `Атаковать противника (${getActiveWeapon(currentPlayerId.value)})`,
+    'attack': `Атаковать противника (${getActiveWeapon(playerId)})`,
     'defend': 'Активировать защиту от следующей атаки'
   }
   return tooltips[action]
 }
 
-const isActionAvailable = (action: ActionType): boolean => {
+// Проверка доступности действия
+const isActionAvailable = (action: ActionType, playerId: string): boolean => {
   if (action === 'attack') {
-    const player = gameEngine.gameState.value.players[currentPlayerId.value]
+    const player = gameEngine.gameState.value.players[playerId]
     const weaponType = player?.activeWeapon
     const weapon = player?.weapons.find(w => w.type === weaponType)
 
@@ -518,15 +739,6 @@ const isActionAvailable = (action: ActionType): boolean => {
   }
   return true
 }
-
-// Инициализация при монтировании
-onMounted(() => {
-  statusMessage.value = `Ход игрока ${currentPlayerId.value === 'player1' ? '1' : '2'}`
-
-  // Показ приветственной подсказки
-  actionTooltip.value = 'Выберите действие для начала игры'
-  setTimeout(() => { actionTooltip.value = '' }, 4000)
-})
 </script>
 
 <style scoped>
@@ -627,39 +839,6 @@ onMounted(() => {
   background-color: rgba(231, 76, 60, 0.05);
 }
 
-.player-marker {
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-weight: bold;
-  color: white;
-  position: relative;
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
-.player-marker.p1 {
-  background: linear-gradient(135deg, #3498db, #2980b9);
-}
-
-.player-marker.p2 {
-  background: linear-gradient(135deg, #e74c3c, #c0392b);
-}
-
-.shield-indicator {
-  position: absolute;
-  width: 62px;
-  height: 62px;
-  border-radius: 50%;
-  border: 2px solid #2ecc71;
-  animation: pulse 1.5s infinite;
-  top: -6px;
-  left: -6px;
-}
-
 .player-cell {
   background-color: rgba(46, 204, 113, 0.1);
 }
@@ -668,19 +847,29 @@ onMounted(() => {
   background-color: rgba(231, 76, 60, 0.1);
 }
 
-.active-cell .player-marker {
-  transform: scale(1.1);
-  box-shadow: 0 5px 10px rgba(0, 0, 0, 0.25);
+.active-cell {
+  background-color: rgba(46, 204, 113, 0.2);
+  box-shadow: inset 0 0 8px rgba(46, 204, 113, 0.4);
 }
 
 .move-target {
   background-color: rgba(52, 152, 219, 0.25);
   animation: pulse-background 1.5s infinite;
+  cursor: pointer;
 }
 
 .attack-target {
   background-color: rgba(231, 76, 60, 0.25);
   animation: pulse-background 1.5s infinite;
+  cursor: pointer;
+}
+
+/* Новый класс для подсвечивания доступных клеток */
+.available-move {
+  border: 2px dashed #3498db;
+  box-sizing: border-box;
+  animation: border-pulse 2s infinite;
+  cursor: pointer;
 }
 
 .cover-cell {
@@ -716,7 +905,15 @@ onMounted(() => {
 }
 
 /* Панель действий */
-.action-panel {
+.action-panels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.player-action-panel {
+  flex: 1;
+  min-width: 300px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -726,10 +923,51 @@ onMounted(() => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
+.player-action-panel.player1 {
+  border-left: 4px solid #3498db;
+}
+
+.player-action-panel.player2 {
+  border-left: 4px solid #e74c3c;
+}
+
+.player-label {
+  font-weight: 600;
+  color: #2c3e50;
+  font-size: 16px;
+  margin-bottom: 5px;
+}
+
+.waiting-panel {
+  flex: 1;
+  min-width: 300px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.waiting-message {
+  font-size: 16px;
+  color: #2c3e50;
+  font-weight: 500;
+}
+
+.executing-message {
+  font-size: 16px;
+  color: #2c3e50;
+  font-weight: 500;
+  animation: highlight 1.5s infinite;
+}
+
 .action-buttons {
   display: flex;
   gap: 12px;
   justify-content: center;
+  flex-wrap: wrap;
 }
 
 button {
@@ -884,6 +1122,18 @@ button.disabled {
   }
 }
 
+@keyframes border-pulse {
+  0% {
+    border-color: rgba(52, 152, 219, 0.4);
+  }
+  50% {
+    border-color: rgba(52, 152, 219, 0.8);
+  }
+  100% {
+    border-color: rgba(52, 152, 219, 0.4);
+  }
+}
+
 @keyframes pulse-background {
   0% {
     opacity: 0.8;
@@ -895,6 +1145,18 @@ button.disabled {
 
   100% {
     opacity: 0.8;
+  }
+}
+
+@keyframes highlight {
+  0% {
+    color: #2c3e50;
+  }
+  50% {
+    color: #3498db;
+  }
+  100% {
+    color: #2c3e50;
   }
 }
 
@@ -964,6 +1226,23 @@ button.disabled {
   transform: scale(0.9);
 }
 
+/* Контейнер для эффектов */
+.effects-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.effect-wrapper {
+  position: absolute;
+  width: 80px;
+  height: 80px;
+}
+
 /* Адаптивность */
 @media (max-width: 900px) {
   .main-section {
@@ -975,38 +1254,12 @@ button.disabled {
     height: 60px;
   }
 
-  .player-marker {
-    width: 40px;
-    height: 40px;
-    font-size: 14px;
-  }
-
-  .shield-indicator {
-    width: 48px;
-    height: 48px;
-  }
-
   .action-buttons {
     flex-wrap: wrap;
   }
-}
 
-.effects-container {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  /* Чтобы эффекты не блокировали клики */
-  z-index: 10;
-}
-
-.effect-wrapper {
-  position: absolute;
-  width: 80px;
-  /* Размер клетки */
-  height: 80px;
-  /* Размер клетки */
+  .action-panels {
+    flex-direction: column;
+  }
 }
 </style>

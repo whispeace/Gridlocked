@@ -4,7 +4,7 @@ import type {
   GameAction, Weapon
 } from '../types.ts'
 import type { GameStateInterface } from './states/GameStatePattern';
-import { PlayerActionSelectionState } from './states/GameStatePattern';
+import { PlayersActionSelectionState } from './states/GameStatePattern';
 import type { ActionResult } from '../types';
 
 export class GameEngine {
@@ -16,14 +16,14 @@ export class GameEngine {
     actionHistory: []
   })
 
+  // Текущие состояния игроков (выбранные действия)
+  private pendingActions = ref<GameAction[]>([]);
+  
+  // Текущее состояние игры
   private currentState: GameStateInterface;
 
-
   // Геттеры состояния
-  public readonly currentPlayer = computed(() =>
-    this.state.value.players[this.state.value.currentTurn])
-
-  public readonly gameState = computed(() => this.state.value)
+  public readonly gameState = computed(() => this.state.value);
 
   constructor(initialState?: Partial<GameState>) {
     if (initialState) {
@@ -31,95 +31,164 @@ export class GameEngine {
     }
     this.initializeGame()
 
-      // Инициализация начального состояния
-      this.currentState = new PlayerActionSelectionState(this);
-      this.currentState.enter();
+    // Инициализация начального состояния
+    this.currentState = new PlayersActionSelectionState(this);
+    this.currentState.enter();
   }
 
   /**
- * Изменяет текущее состояние игры
- * @param newState Новое состояние
- */
-public changeState(newState: GameStateInterface): void {
-  this.currentState.exit();
-  this.currentState = newState;
-  this.currentState.enter();
-}
-
-/**
- * Выполнение действия игрока с поддержкой паттерна "Состояние"
- * @param action Действие игрока
- * @returns Результат выполнения действия
- */
-public executeAction(action: GameAction): ActionResult {
-  const player = this.state.value.players[action.playerId];
-
-  // Проверка валидности хода
-  if (action.playerId !== this.state.value.currentTurn || !player) {
-    return {
-      success: false,
-      affectedPositions: [],
-      message: 'Сейчас не ваш ход'
-    };
+   * Изменяет текущее состояние игры
+   * @param newState Новое состояние
+   */
+  public changeState(newState: GameStateInterface): void {
+    this.currentState.exit();
+    this.currentState = newState;
+    this.currentState.enter();
   }
 
-  // Делегирование обработки текущему состоянию
-  return this.currentState.handleAction(action);
-}
-
-/**
- * Регистрация действия в истории
- * @param action Действие игрока
- */
-public recordAction(action: GameAction): void {
-  this.state.value.actionHistory.push(action);
-}
-
-/**
- * Переход хода к следующему игроку
- */
-public nextTurn(): void {
-  // Сброс статуса защиты предыдущего игрока
-  const currentPlayer = this.state.value.players[this.state.value.currentTurn];
-  if (currentPlayer.isDefending) {
-    currentPlayer.isDefending = false;
+  /**
+   * Добавляет ожидающее действие игрока
+   * @param action Действие игрока
+   * @returns true, если действие успешно добавлено
+   */
+  public storePendingAction(action: GameAction): boolean {
+    // Проверяем, не выбрал ли игрок уже действие
+    const existingActionIndex = this.pendingActions.value.findIndex(
+      a => a.playerId === action.playerId
+    );
+    
+    if (existingActionIndex !== -1) {
+      // Если игрок уже выбрал действие, заменяем его
+      this.pendingActions.value[existingActionIndex] = action;
+    } else {
+      // Иначе добавляем новое действие
+      this.pendingActions.value.push(action);
+    }
+    
+    // Записываем действие в историю
+    this.recordAction(action);
+    
+    return true;
   }
 
-  // Смена текущего игрока
-  const playerIds = Object.keys(this.state.value.players);
-  const currentIndex = playerIds.indexOf(this.state.value.currentTurn);
-  const nextIndex = (currentIndex + 1) % playerIds.length;
+  /**
+   * Сбрасывает все ожидающие действия
+   */
+  public resetPendingActions(): void {
+    this.pendingActions.value = [];
+    
+    // Сброс статуса защиты всех игроков перед новым раундом
+    Object.values(this.state.value.players).forEach(player => {
+      player.isDefending = false;
+    });
+  }
 
-  this.state.value.currentTurn = playerIds[nextIndex];
-  this.state.value.turnNumber += 1;
-  
-  // Сброс состояния на выбор действия для нового игрока
-  this.changeState(new PlayerActionSelectionState(this));
-}
+  /**
+   * Проверяет, выбрали ли оба игрока свои действия
+   * @returns true, если оба игрока выбрали действия
+   */
+  public areBothPlayersReady(): boolean {
+    const playerIds = Object.keys(this.state.value.players);
+    return this.pendingActions.value.length === playerIds.length;
+  }
 
-/**
- * Получение доступных действий для текущего игрока
- * @returns Массив доступных действий
- */
-public getAvailableActions(): ActionType[] {
-  return this.currentState.getAvailableActions();
-}
+  /**
+   * Получает все ожидающие действия
+   * @returns Массив ожидающих действий
+   */
+  public getPendingActions(): GameAction[] {
+    return [...this.pendingActions.value];
+  }
 
-/**
- * Получение доступных клеток для перемещения
- * @returns Массив доступных позиций
- */
-public getAvailableMoves(): Position[] {
-  return this.currentState.getAvailableMoves();
-}
+  /**
+   * Выполнение действия игрока с поддержкой паттерна "Состояние"
+   * @param action Действие игрока
+   * @returns Результат выполнения действия
+   */
+  public executeAction(action: GameAction): ActionResult {
+    const player = this.state.value.players[action.playerId];
 
-/**
- * Получение доступных целей для атаки
- * @returns Массив доступных позиций
- */
-public getAvailableTargets(): Position[] {
-  return this.currentState.getAvailableTargets();
-}
+    // Проверка существования игрока
+    if (!player) {
+      return {
+        success: false,
+        affectedPositions: [],
+        message: 'Игрок не найден'
+      };
+    }
+
+    // Делегирование обработки текущему состоянию
+    return this.currentState.handleAction(action);
+  }
+
+  /**
+   * Регистрация действия в истории
+   * @param action Действие игрока
+   */
+  public recordAction(action: GameAction): void {
+    this.state.value.actionHistory.push(action);
+  }
+
+  /**
+   * Увеличивает номер раунда
+   */
+  public incrementRound(): void {
+    this.state.value.turnNumber += 1;
+  }
+
+  /**
+   * Получение доступных действий для игрока
+   * @param playerId ID игрока
+   * @returns Массив доступных действий
+   */
+  public getAvailableActions(playerId: string): ActionType[] {
+    return this.currentState.getAvailableActions(playerId);
+  }
+
+  /**
+   * Получение доступных клеток для перемещения
+   * @param playerId ID игрока
+   * @returns Массив доступных позиций
+   */
+  public getAvailableMoves(playerId: string): Position[] {
+    return this.currentState.getAvailableMoves(playerId);
+  }
+
+  /**
+   * Получение доступных целей для атаки
+   * @param playerId ID игрока
+   * @returns Массив доступных позиций
+   */
+  public getAvailableTargets(playerId: string): Position[] {
+    return this.currentState.getAvailableTargets(playerId);
+  }
+
+  /**
+   * Проверяет, завершили ли оба игрока действия в текущем раунде
+   * @returns true, если раунд завершен
+   */
+  public isRoundComplete(): boolean {
+    return this.currentState.isRoundComplete();
+  }
+
+  /**
+   * Проверяет, выбрал ли игрок действие в текущем раунде
+   * @param playerId ID игрока
+   * @returns true, если игрок выбрал действие
+   */
+  public hasPlayerSelected(playerId: string): boolean {
+    return this.pendingActions.value.some(action => action.playerId === playerId);
+  }
+
+  /**
+   * Получает выбранное действие игрока
+   * @param playerId ID игрока
+   * @returns Выбранное действие или null
+   */
+  public getPlayerAction(playerId: string): ActionType | null {
+    const action = this.pendingActions.value.find(a => a.playerId === playerId);
+    return action ? action.type : null;
+  }
 
   private initializeGame(): void {
     // Создание игрового поля 3x3 + 3x3
@@ -159,6 +228,8 @@ public getAvailableTargets(): Position[] {
       player2
     }
 
+    // Первый игрок по умолчанию, но это значение в новой модели используется только
+    // для сохранения совместимости с существующим кодом
     this.state.value.currentTurn = 'player1'
   }
 
