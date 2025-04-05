@@ -430,19 +430,37 @@ export class PlayerAttackState extends GameState {
       return [];
     }
     
-    // Рассчет всех возможных клеток в пределах дальности
     const targets: Position[] = [];
+    const isPlayerOne = player.id === 'player1';
+    const { x, y } = player.position;
     
-    // Для простоты берем манхэттенское расстояние
-    for (let dx = -weapon.range; dx <= weapon.range; dx++) {
-      for (let dy = -weapon.range; dy <= weapon.range; dy++) {
-        if (Math.abs(dx) + Math.abs(dy) <= weapon.range) {
-          const targetX = player.position.x + dx;
-          const targetY = player.position.y + dy;
-          
-          // Проверка границ поля
-          if (targetX >= 0 && targetX < 6 && targetY >= 0 && targetY < 3) {
-            targets.push({ x: targetX, y: targetY });
+    // Оружия, которые стреляют по горизонтали (все, кроме дробовика)
+    if (weapon.type !== 'shotgun') {
+      // Для первого игрока стрельба слева направо
+      if (isPlayerOne) {
+        for (let dx = 1; dx <= weapon.range && x + dx < 6; dx++) {
+          targets.push({ x: x + dx, y });
+        }
+      } 
+      // Для второго игрока стрельба справа налево
+      else {
+        for (let dx = 1; dx <= weapon.range && x - dx >= 0; dx++) {
+          targets.push({ x: x - dx, y });
+        }
+      }
+    } 
+    // Для дробовика оставляем текущую логику с манхэттенским расстоянием
+    else {
+      for (let dx = -weapon.range; dx <= weapon.range; dx++) {
+        for (let dy = -weapon.range; dy <= weapon.range; dy++) {
+          if (Math.abs(dx) + Math.abs(dy) <= weapon.range) {
+            const targetX = x + dx;
+            const targetY = y + dy;
+            
+            // Проверка границ поля
+            if (targetX >= 0 && targetX < 6 && targetY >= 0 && targetY < 3) {
+              targets.push({ x: targetX, y: targetY });
+            }
           }
         }
       }

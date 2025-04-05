@@ -169,7 +169,7 @@ public getAvailableTargets(): Position[] {
         return {
           type: 'pistol',
           damage: 20,
-          range: 2,
+          range: 5, // Увеличенная дальность для стрельбы через поле
           ammoPerShot: 1,
           attackPattern: [{ x: 0, y: 0 }] // Точное попадание в одну клетку
         }
@@ -195,11 +195,9 @@ public getAvailableTargets(): Position[] {
         return {
           type: 'machinegun',
           damage: 10,
-          range: 2,
+          range: 5, // Через всё поле
           ammoPerShot: 3,
-          attackPattern: [
-            { x: 0, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 0 }
-          ] // Площадь поражения
+          attackPattern: [{ x: 0, y: 0 }] // Прямой выстрел в одну клетку
         }
     }
   }
