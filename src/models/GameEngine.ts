@@ -3,6 +3,9 @@ import type {
   GameState, Player, Position, ActionType,
   GameAction, Weapon
 } from '../types.ts'
+import type { GameStateInterface } from './states/GameStatePattern';
+import { PlayerActionSelectionState } from './states/GameStatePattern';
+import type { ActionResult } from '../types';
 
 export class GameEngine {
   private state = ref<GameState>({
@@ -12,6 +15,9 @@ export class GameEngine {
     turnNumber: 0,
     actionHistory: []
   })
+
+  private currentState: GameStateInterface;
+
 
   // Геттеры состояния
   public readonly currentPlayer = computed(() =>
@@ -24,7 +30,96 @@ export class GameEngine {
       this.state.value = { ...this.state.value, ...initialState }
     }
     this.initializeGame()
+
+      // Инициализация начального состояния
+      this.currentState = new PlayerActionSelectionState(this);
+      this.currentState.enter();
   }
+
+  /**
+ * Изменяет текущее состояние игры
+ * @param newState Новое состояние
+ */
+public changeState(newState: GameStateInterface): void {
+  this.currentState.exit();
+  this.currentState = newState;
+  this.currentState.enter();
+}
+
+/**
+ * Выполнение действия игрока с поддержкой паттерна "Состояние"
+ * @param action Действие игрока
+ * @returns Результат выполнения действия
+ */
+public executeAction(action: GameAction): ActionResult {
+  const player = this.state.value.players[action.playerId];
+
+  // Проверка валидности хода
+  if (action.playerId !== this.state.value.currentTurn || !player) {
+    return {
+      success: false,
+      affectedPositions: [],
+      message: 'Сейчас не ваш ход'
+    };
+  }
+
+  // Делегирование обработки текущему состоянию
+  return this.currentState.handleAction(action);
+}
+
+/**
+ * Регистрация действия в истории
+ * @param action Действие игрока
+ */
+public recordAction(action: GameAction): void {
+  this.state.value.actionHistory.push(action);
+}
+
+/**
+ * Переход хода к следующему игроку
+ */
+public nextTurn(): void {
+  // Сброс статуса защиты предыдущего игрока
+  const currentPlayer = this.state.value.players[this.state.value.currentTurn];
+  if (currentPlayer.isDefending) {
+    currentPlayer.isDefending = false;
+  }
+
+  // Смена текущего игрока
+  const playerIds = Object.keys(this.state.value.players);
+  const currentIndex = playerIds.indexOf(this.state.value.currentTurn);
+  const nextIndex = (currentIndex + 1) % playerIds.length;
+
+  this.state.value.currentTurn = playerIds[nextIndex];
+  this.state.value.turnNumber += 1;
+  
+  // Сброс состояния на выбор действия для нового игрока
+  this.changeState(new PlayerActionSelectionState(this));
+}
+
+/**
+ * Получение доступных действий для текущего игрока
+ * @returns Массив доступных действий
+ */
+public getAvailableActions(): ActionType[] {
+  return this.currentState.getAvailableActions();
+}
+
+/**
+ * Получение доступных клеток для перемещения
+ * @returns Массив доступных позиций
+ */
+public getAvailableMoves(): Position[] {
+  return this.currentState.getAvailableMoves();
+}
+
+/**
+ * Получение доступных целей для атаки
+ * @returns Массив доступных позиций
+ */
+public getAvailableTargets(): Position[] {
+  return this.currentState.getAvailableTargets();
+}
 
   private initializeGame(): void {
     // Создание игрового поля 3x3 + 3x3
@@ -35,7 +130,7 @@ export class GameEngine {
     // Инициализация игроков (базовый пример)
     const player1: Player = {
       id: 'player1',
-      position: { x: 0, y: 0 },
+      position: { x: 1, y: 1 },
       resources: {
         ammo: 10,
         shield: 3,
@@ -48,7 +143,7 @@ export class GameEngine {
 
     const player2: Player = {
       id: 'player2',
-      position: { x: 3, y: 0 }, // Начальная позиция на противоположной стороне
+      position: { x: 4, y: 1 }, // Начальная позиция на противоположной стороне
       resources: {
         ammo: 10,
         shield: 3,
@@ -107,236 +202,5 @@ export class GameEngine {
           ] // Площадь поражения
         }
     }
-  }
-
-  // Выполнение действия игрока
-  public executeAction(action: GameAction): boolean {
-    const player = this.state.value.players[action.playerId]
-
-    // Проверка валидности хода
-    if (action.playerId !== this.state.value.currentTurn || !player) {
-      return false
-    }
-
-    switch (action.type) {
-      case 'move':
-        return this.executeMove(player, action.payload as Position)
-      case 'attack':
-        return this.executeAttack(player, action.payload as Position)
-      case 'defend':
-        return this.executeDefend(player)
-      default:
-        return false
-    }
-  }
-
-  private executeMove(player: Player, targetPosition: Position): boolean {
-    // Проверка валидности перемещения (только в свою зону 3x3)
-    const isPlayerOne = player.id === 'player1'
-    const validXRange = isPlayerOne ? [0, 1, 2] : [3, 4, 5]
-
-    if (
-      !validXRange.includes(targetPosition.x) ||
-      targetPosition.y < 0 ||
-      targetPosition.y > 2
-    ) {
-      return false
-    }
-
-    // Проверка дистанции хода (можно перемещаться только на 1 клетку)
-    const distX = Math.abs(targetPosition.x - player.position.x)
-    const distY = Math.abs(targetPosition.y - player.position.y)
-
-    if (distX + distY !== 1) {
-      return false
-    }
-
-    // Выполнение перемещения
-    player.position = { ...targetPosition }
-
-    // Регистрация действия и переход хода
-    this.recordAction({
-      playerId: player.id,
-      type: 'move',
-      payload: targetPosition,
-      timestamp: Date.now()
-    })
-
-    this.nextTurn()
-    return true
-  }
-
-  private executeAttack(player: Player, targetPosition: Position): boolean {
-    const weapon = player.weapons.find(w => w.type === player.activeWeapon)
-
-    if (!weapon) {
-      return false
-    }
-
-    // Проверка наличия достаточного количества патронов
-    if (player.resources.ammo < weapon.ammoPerShot) {
-      return false
-    }
-
-    // Проверка дистанции атаки
-    const distX = Math.abs(targetPosition.x - player.position.x)
-    const distY = Math.abs(targetPosition.y - player.position.y)
-
-    if (distX + distY > weapon.range) {
-      return false
-    }
-
-    // Расчёт клеток поражения на основе шаблона оружия
-    const affectedPositions = weapon.attackPattern.map(offset => ({
-      x: targetPosition.x + offset.x,
-      y: targetPosition.y + offset.y
-    }))
-
-    // Определение цели атаки (другой игрок в зоне поражения)
-    const targetPlayers = Object.values(this.state.value.players).filter(p =>
-      p.id !== player.id &&
-      affectedPositions.some(pos => pos.x === p.position.x && pos.y === p.position.y)
-    )
-
-    // Применение урона к целям
-    targetPlayers.forEach(target => {
-      // Если цель защищается, урон идёт по щитам
-      if (target.isDefending && target.resources.shield > 0) {
-        target.resources.shield -= 1
-      } else {
-        // Иначе урон идёт по здоровью
-        target.resources.health -= weapon.damage
-      }
-
-      // Проверка поражения цели
-      if (target.resources.health <= 0) {
-        // Тут можно добавить логику завершения игры или удаления игрока
-        console.log(`Игрок ${target.id} повержен!`)
-      }
-    })
-
-    // Расход патронов
-    player.resources.ammo -= weapon.ammoPerShot
-
-    // Регистрация действия и переход хода
-    this.recordAction({
-      playerId: player.id,
-      type: 'attack',
-      payload: {
-        targetPosition,
-        affectedPositions,
-        damage: weapon.damage,
-        weaponType: weapon.type
-      },
-      timestamp: Date.now()
-    })
-
-    this.nextTurn()
-    return true
-  }
-
-  private executeDefend(player: Player): boolean {
-    // Активация защиты
-    player.isDefending = true
-
-    // Регистрация действия и переход хода
-    this.recordAction({
-      playerId: player.id,
-      type: 'defend',
-      payload: null,
-      timestamp: Date.now()
-    })
-
-    this.nextTurn()
-    return true
-  }
-
-  private recordAction(action: GameAction): void {
-    this.state.value.actionHistory.push(action)
-  }
-
-  private nextTurn(): void {
-    // Сброс статуса защиты предыдущего игрока
-    const currentPlayer = this.state.value.players[this.state.value.currentTurn]
-    if (currentPlayer.isDefending) {
-      currentPlayer.isDefending = false
-    }
-
-    // Смена текущего игрока
-    const playerIds = Object.keys(this.state.value.players)
-    const currentIndex = playerIds.indexOf(this.state.value.currentTurn)
-    const nextIndex = (currentIndex + 1) % playerIds.length
-
-    this.state.value.currentTurn = playerIds[nextIndex]
-    this.state.value.turnNumber += 1
-  }
-
-  // Получение доступных действий для текущего игрока
-  public getAvailableActions(): ActionType[] {
-    const player = this.currentPlayer.value
-    const actions: ActionType[] = ['move', 'defend']
-
-    // Проверка возможности атаки (наличие патронов)
-    const weapon = player.weapons.find(w => w.type === player.activeWeapon)
-    if (weapon && player.resources.ammo >= weapon.ammoPerShot) {
-      actions.push('attack')
-    }
-
-    return actions
-  }
-
-  // Получение доступных клеток для перемещения
-  public getAvailableMoves(): Position[] {
-    const player = this.currentPlayer.value
-    const { x, y } = player.position
-
-    // Определение зоны игрока
-    const isPlayerOne = player.id === 'player1'
-    const minX = isPlayerOne ? 0 : 3
-    const maxX = isPlayerOne ? 2 : 5
-
-    // Проверка соседних клеток
-    const possibleMoves: Position[] = [
-      { x: x - 1, y },
-      { x: x + 1, y },
-      { x, y: y - 1 },
-      { x, y: y + 1 }
-    ]
-
-    // Фильтрация по границам поля
-    return possibleMoves.filter(pos =>
-      pos.x >= minX && pos.x <= maxX &&
-      pos.y >= 0 && pos.y <= 2
-    )
-  }
-
-  // Получение доступных целей для атаки
-  public getAvailableTargets(): Position[] {
-    const player = this.currentPlayer.value
-    const weapon = player.weapons.find(w => w.type === player.activeWeapon)
-
-    if (!weapon || player.resources.ammo < weapon.ammoPerShot) {
-      return []
-    }
-
-    // Рассчет всех возможных клеток в пределах дальности
-    const targets: Position[] = []
-
-    // Для простоты берем манхэттенское расстояние
-    for (let dx = -weapon.range;dx <= weapon.range;dx++) {
-      for (let dy = -weapon.range;dy <= weapon.range;dy++) {
-        if (Math.abs(dx) + Math.abs(dy) <= weapon.range) {
-          const targetX = player.position.x + dx
-          const targetY = player.position.y + dy
-
-          // Проверка границ поля
-          if (targetX >= 0 && targetX < 6 && targetY >= 0 && targetY < 3) {
-            targets.push({ x: targetX, y: targetY })
-          }
-        }
-      }
-    }
-
-    return targets
   }
 }
